@@ -1,5 +1,6 @@
 import os
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 
 # -*- mode: python ; coding: utf-8 -*-
 
@@ -7,6 +8,8 @@ import os
 from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
+
+hiddenimports = collect_submodules('cv2') + ['face_recognition_models', 'dlib', 'numpy']
 
 # Inclui TODOS os arquivos da pasta Resources
 resources_files = collect_data_files('Resources', include_py_files=False)
@@ -16,11 +19,9 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        # Face Recognition
-        (
-            r'C:\Users\yago_\AppData\Local\Programs\Python\Python311\Lib\site-packages\face_recognition_models\models\*.dat',
-            'face_recognition_models/models'
-        ),
+
+        ('Register.py', '.'),
+        ('FaceRecognition.py', '.'),
 
         # Inclui TODA a pasta Resources
         # Tree('Resources', prefix='Resources'),
@@ -32,7 +33,7 @@ a = Analysis(
          ('Resources/Modes/3.png', 'Resources/Modes'),
          ('Resources/Modes/4.png', 'Resources/Modes')
     ],
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -57,7 +58,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
