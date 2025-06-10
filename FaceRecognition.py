@@ -66,6 +66,8 @@ modeType = 0
 counter = 0
 id = -1
 imgStudent = []
+no_face_counter = 0  # Contador para detectar ausência prolongada de rostos
+MAX_NO_FACE_FRAMES = 30 # Número de frames sem rosto antes de voltar ao modo 1
 
 # Funções auxiliares Supabase
 def get_student_info(student_id):

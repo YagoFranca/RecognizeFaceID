@@ -5,15 +5,24 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4d50488e-81fb-43c3-aad4-fd869cdbe61f" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ScreenManager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/ProjetoD.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ProjetoD.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EncodeFile.p" beforeDir="false" afterPath="$PROJECT_DIR$/EncodeFile.p" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/FaceRecognition.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Main.spec" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ScreenRegister.py" beforeDir="false" afterPath="$PROJECT_DIR$/Register.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bfg-1.15.0.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/EncodeFile.p" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/FaceRecognition.py" beforeDir="false" afterPath="$PROJECT_DIR$/FaceRecognition.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/103538.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/115160.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/270641.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/303435.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/520917.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/542789.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/607312.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/673690.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/678509.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/714034.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/723849.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/826845.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Images/987413.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/Main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Register.py" beforeDir="false" afterPath="$PROJECT_DIR$/Register.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
