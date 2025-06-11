@@ -290,13 +290,13 @@ def set_notification(message, notif_type="info"):
 
 
 def draw_student_info_card(img, x, y, w, h):
-    """Desenha o card com informações do estudante"""
+    """Desenha o card com informações do usuario"""
     if not studentInfo:
         cv2.putText(img, "Aguardando reconhecimento...", (x + 20, y + 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, COLORS['text_secondary'], 2)
         return
 
-    # Nome do estudante
+    # Nome do usuario
     name = studentInfo.get('name', 'N/A')
     cv2.putText(img, name, (x + 20, y + 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, COLORS['text_primary'], 2)
@@ -355,7 +355,7 @@ def is_already_registered_today(student_id):
         # Obter a data de hoje no formato YYYY-MM-DD
         today = datetime.now().strftime("%Y-%m-%d")
 
-        # Buscar informações do estudante
+        # Buscar informações do usuario
         result = supabase.table("FaceAttendenceRealTime").select("last_attendance_time").eq("id", student_id).limit(
             1).execute()
 
@@ -378,7 +378,7 @@ def is_already_registered_today(student_id):
                 # Se não há registro de última presença, não foi registrado hoje
                 return False
         else:
-            print(f"Estudante com ID {student_id} não encontrado")
+            print(f"Usuario com ID {student_id} não encontrado")
             return False
 
     except Exception as e:
@@ -459,7 +459,7 @@ while True:
                 status = "already_registered"
                 status_text = f"Já registrado hoje: {studentInfo['name']}"
                 set_notification(f"{studentInfo['name']} - JA REGISTRADO HOJE!", "info")
-                print(f"🔄 Estudante {studentInfo['name']} já registrado hoje - não contabilizando")
+                print(f"🔄 Usuario {studentInfo['name']} já registrado hoje - não contabilizando")
             else:
                 # Registra a presença
                 update_attendance(id, studentInfo['total_attendance'] + 1)
@@ -506,15 +506,15 @@ while True:
     # Status do sistema
     draw_status_indicator(interface, 60, status_y, status, status_text)
 
-    # Card de informações do estudante (lado direito)
+    # Card de informações do usuario (lado direito)
     draw_modern_card(interface, 720, info_y, 520, 300, "Detalhes do Usuario",
                      draw_student_info_card)
 
-    # Foto do estudante
+    # Foto do usuario
     if imgStudent is not None and len(imgStudent) > 0:
         draw_modern_card(interface, 720, student_photo_y, 250, 270, "FOTO")
         try:
-            # Redimensiona a imagem do estudante
+            # Redimensiona a imagem do usuario
             student_resized = cv2.resize(imgStudent, (210, 200))
 
             # Calcula as posições corretas considerando o padding do card
@@ -530,13 +530,13 @@ while True:
                 print(f"Dimensões da foto excedem os limites da interface")
 
         except Exception as e:
-            print(f"Erro ao exibir foto do estudante: {e}")
+            print(f"Erro ao exibir foto do usuario: {e}")
 
     # Métricas (cards pequenos)
     total_students = len(studentIds)
+    total_attendance = studentInfo.get('total_attendance', 0) if studentInfo else 0
     draw_metric_card(interface, 990, metrics_y, 120, 100, total_students, "CADASTRADOS")
-    draw_metric_card(interface, 1120, metrics_y, 120, 100,
-                     studentInfo.get('total_attendance', 0), "PRESENCAS")
+    draw_metric_card(interface, 1120, metrics_y, 120, 100,studentInfo.get('total_attendance', 0), "PRESENCAS")
 
     # Footer
     footer_y = 760 if notification_timer == 0 else 840

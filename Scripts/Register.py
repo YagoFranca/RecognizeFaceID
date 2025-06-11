@@ -30,10 +30,10 @@ def obter_total_atendimentos():
             .select("total_attendance") \
             .order("total_attendance", desc=True) \
             .limit(1).execute()
-        return resp.data[0]['total_attendance'] + 1 if resp.data else 1
+        return 0
     except Exception as e:
         print("Erro ao obter total:", e)
-        return 1
+        return 0
 
 
 # --- Classe principal da aplicação ---
@@ -343,7 +343,7 @@ class FaceRegisterApp:
             "phone": phone,
             "event": event,
             "total_attendance": self.total_attendance,
-            "last_attendance_time": datetime.now().isoformat()
+            #"last_attendance_time": datetime.now().isoformat()
         }
 
         self.status_label.config(
