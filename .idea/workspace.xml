@@ -6,23 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="4d50488e-81fb-43c3-aad4-fd869cdbe61f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EncodeFile.p" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/FaceRecognition.py" beforeDir="false" afterPath="$PROJECT_DIR$/FaceRecognition.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/103538.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/115160.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/270641.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/303435.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/520917.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/542789.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/607312.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/673690.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/678509.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/714034.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/723849.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/826845.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Images/987413.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/Main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Register.py" beforeDir="false" afterPath="$PROJECT_DIR$/Register.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/FaceRecognition.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Register.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ScreenManager.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -73,7 +60,7 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/MeusProjetos/AI/RecognizeFaceID&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.general&quot;
   }
 }</component>
   <component name="RecentsManager">
