@@ -172,8 +172,8 @@ def draw_notification_banner(img, x, y, w, h, message, notification_type="info")
         cv2.line(img, (x + 38, y + h // 2 + 8), (x + 50, y + h // 2 - 8), COLORS['text_primary'], 4)
     elif notification_type == 'info':
         # Círculo info
-        cv2.circle(img, (x + 40, y + h // 2), 20, COLORS['text_primary'], 3)
-        cv2.putText(img, "i", (x + 35, y + h // 2 + 8), cv2.FONT_HERSHEY_SIMPLEX, 1.2, COLORS['text_primary'], 3)
+        cv2.circle(img, (x + 40, y + h // 2), 25, COLORS['text_primary'], 4)
+        cv2.putText(img, "i", (x + 35, y + h // 2 + 9), cv2.FONT_HERSHEY_SIMPLEX, 1.2, COLORS['text_primary'], 3)
 
     # Texto da mensagem
     cv2.putText(img, message, (x + 80, y + h // 2 + 8),
@@ -201,7 +201,7 @@ def create_modern_interface(width=1280, height=800):
 
     # Header
     draw_gradient_rect(img, (0, 0), (width, 80), COLORS['primary'], COLORS['accent'])
-    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL", (40, 45),
+    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL", (45, 45),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, COLORS['text_primary'], 3)
 
     # Timestamp
@@ -490,6 +490,8 @@ while True:
         info_y = 180
         student_photo_y = 500
         metrics_y = 500
+        metrics_y_1 = 610
+        metrics_x = 1000
         status_y = 660
     else:
         # Posições normais quando não há notificação
@@ -497,6 +499,8 @@ while True:
         info_y = 100
         student_photo_y = 420
         metrics_y = 420
+        metrics_y_1 = 530
+        metrics_x = 1000
         status_y = 580
 
     # Feed da câmera (lado esquerdo)
@@ -535,8 +539,8 @@ while True:
     # Métricas (cards pequenos)
     total_students = len(studentIds)
     total_attendance = studentInfo.get('total_attendance', 0) if studentInfo else 0
-    draw_metric_card(interface, 990, metrics_y, 120, 100, total_students, "CADASTRADOS")
-    draw_metric_card(interface, 1120, metrics_y, 120, 100,studentInfo.get('total_attendance', 0), "PRESENCAS")
+    draw_metric_card(interface, 1000, metrics_y, 250, 100, total_students, "CADASTRADOS")
+    draw_metric_card(interface, metrics_x, metrics_y_1, 250, 100, studentInfo.get('total_attendance', 0), "PRESENCAS")
 
     # Footer
     footer_y = 760 if notification_timer == 0 else 840

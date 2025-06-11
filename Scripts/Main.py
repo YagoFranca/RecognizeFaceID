@@ -16,7 +16,7 @@ class StartScreen(tk.Tk):
         """Configura a janela principal"""
         self.title("272 Club - Sistema de Registro")
         self.configure(bg="#0f0f23")
-        self.centralizar_janela(500, 600)
+        self.centralizar_janela(500, 800)
         self.resizable(False, False)
 
         # Ícone da janela (se disponível)
@@ -138,6 +138,19 @@ class StartScreen(tk.Tk):
             self.open_register
         )
 
+        # Espaçamento
+        tk.Frame(buttons_container, bg="#0f0f23", height=20).pack()
+
+        # Novo botão: Relatórios
+        self.criar_botao_opcao(
+            buttons_container,
+            "📊 Relatórios",
+            "Visualizar dados e estatísticas",
+            "#f1c40f",
+            "#f39c12",
+            self.open_reports  # <- certifique-se de ter esse método criado
+        )
+
     def criar_botao_opcao(self, parent, texto, descricao, cor_normal, cor_hover, comando):
         """Cria um botão de opção estilizado"""
         # Container do botão
@@ -212,7 +225,7 @@ class StartScreen(tk.Tk):
         # Informações do sistema
         info_label = tk.Label(
             footer_frame,
-            text="272 Club Pro v2.0 • Powered by Python & OpenCV",
+            text="272 Club Pro v2.0 • Powered by Yago de Souza França",
             font=("Segoe UI", 8),
             bg="#0f0f23",
             fg="#666"
@@ -226,6 +239,10 @@ class StartScreen(tk.Tk):
     def open_register(self):
         """Abre o script de registro"""
         self.open_script("Register.py", "📝 Novo Registro")
+
+    def open_reports(self):
+        """Abre o script de relatorios"""
+        self.open_script("Resume.py", "📊 Relatórios")
 
     def open_script(self, script_name, action_name):
         """Abre um script Python com feedback visual"""
