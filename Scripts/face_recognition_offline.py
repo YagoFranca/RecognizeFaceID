@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 import threading
 import time
+import tkinter as tk
 
 # Importar módulos do sistema offline
 from local_database import LocalDatabase, serialize_encoding, deserialize_encoding
@@ -71,6 +72,9 @@ COLORS = {
     'border': (74, 85, 104)  # Bordas
 }
 
+def on_close():
+    print("Janela será fechada!")
+    root.destroy()  # fecha a janela
 
 def draw_gradient_rect(img, pt1, pt2, color1, color2, vertical=True):
     """Desenha um retângulo com gradiente"""
@@ -195,7 +199,7 @@ def create_modern_interface(width=1280, height=800):
 
     # Header
     draw_gradient_rect(img, (0, 0), (width, 80), COLORS['primary'], COLORS['accent'])
-    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL (OFFLINE-FIRST)", (45, 45),
+    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL", (45, 45),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, COLORS['text_primary'], 3)
 
     # Timestamp
@@ -607,31 +611,34 @@ class OfflineFaceRecognitionSystem:
             draw_status_indicator(interface, 50, 130, connection_status, f"Conexao: {connection_text}")
 
             # Card de informações do usuário
-            draw_modern_card(interface, 50, 180, 400, 200, "Informacoes do Usuario", self.draw_student_info_card)
+            draw_modern_card(interface, 50, 180, 400, 230, "Informacoes do Usuario", self.draw_student_info_card)
 
             # Feed da câmera
             self.draw_camera_feed(interface, img_resized, 500, 100, 640, 480)
 
             # Imagem do usuário (se disponível)
             if self.imgStudent is not None and len(self.imgStudent) > 0:
-                try:
-                    imgStudent_resized = cv2.resize(self.imgStudent, (200, 200))
-                    interface[400:600, 50:250] = imgStudent_resized
-                except:
-                    pass
+               try:
+                   y = 250  # sobe 100px em relação ao rodapé
+                   x = 300  # move 50px à direita
+
+                   imgStudent_resized = cv2.resize(self.imgStudent, (130, 130))
+                   interface[y:y+130, x:x+130] = imgStudent_resized
+               except:
+                   pass
 
             # Notificação (se ativa)
             if self.notification_timer > 0:
-                draw_notification_banner(interface, 200, 650, 800, 80,
+                draw_notification_banner(interface, 50, 680, 800, 80,
                                        self.notification_message, self.notification_type)
                 self.notification_timer -= 1
 
             # Estatísticas do banco local
             stats = self.local_db.get_database_stats()
-            draw_metric_card(interface, 1000, 600, 200, 100, stats['total_registrations'], "Registros Locais")
-            draw_metric_card(interface, 1000, 720, 200, 60, stats['pending_sync'], "Pendentes Sync")
+            draw_metric_card(interface, 50, 430, 200, 100, stats['total_registrations'], "Registros Locais")
+            draw_metric_card(interface, 270, 430, 200, 100, stats['pending_sync'], "Pendentes Sync")
 
-            cv2.imshow("Sistema de Reconhecimento Facial (Offline-First)", interface)
+            cv2.imshow("Sistema de Reconhecimento Facial", interface)
 
             # Controles de teclado
             key = cv2.waitKey(1) & 0xFF
@@ -657,7 +664,6 @@ class OfflineFaceRecognitionSystem:
         cap.release()
         cv2.destroyAllWindows()
 
-
 def main():
     """Função principal"""
     try:
@@ -671,4 +677,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 

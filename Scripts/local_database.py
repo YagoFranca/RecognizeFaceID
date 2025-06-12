@@ -30,6 +30,29 @@ class LocalDatabase:
         self.db_path = db_path
         self.init_database()
 
+    def load_encodings_from_database(self):
+        """Carrega encodings do banco de dados local"""
+        print("Loading encodings from local database...")
+        try:
+            registros = self.local_db.get_all_registrations()
+
+            self.encodeListKnown = []
+            self.studentIds = []
+
+            for registro in registros:
+                if registro.get('encoding'):
+                    # Deserializar encoding
+                    encoding = deserialize_encoding(registro['encoding'])
+                    if encoding is not None:
+                        self.encodeListKnown.append(encoding)
+                        self.studentIds.append(registro['id'])
+
+            print(f"✅ Carregados {len(self.encodeListKnown)} encodings do banco local")
+
+        except Exception as e:
+            print(f"❌ Erro ao carregar encodings: {e}")
+            self.encodeListKnown, self.studentIds = [], []
+
     def init_database(self):
         """Inicializa o banco de dados e cria as tabelas necessárias"""
         try:
