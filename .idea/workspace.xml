@@ -5,7 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="133935ac-ab25-457d-aadd-380659be5fd7" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/Scripts/event_controller_offline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/face_recognition_offline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/local_database.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/register.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Scripts/sync_manager.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Test/test_system.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/ProjetoD.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ProjetoD.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/EncodeFile.p" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/FaceRecognition.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Images/759127.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/Scripts/Main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Register.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Scripts/Resume.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,16 +46,29 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Python tests.Python tests in test_system.py.executor": "Run",
     "Python.FaceRecognition.executor": "Run",
     "Python.Main.executor": "Run",
+    "Python.Register.executor": "Run",
     "Python.Resume.executor": "Run",
+    "Python.event_controller_offline.executor": "Run",
+    "Python.face_recognition_offline.executor": "Run",
+    "Python.face_register_offline.executor": "Run",
+    "Python.offline_face_register.executor": "Run",
+    "Python.register.executor": "Run",
+    "Python.sync_manager.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "features/RecognizeFace",
-    "last_opened_file_path": "C:/IA Projects/LicencePlateReader",
+    "last_opened_file_path": "C:/Users/yago_/VisualCodeProjects/ProjetoD",
     "settings.editor.selected.configurable": "preferences.lookFeel"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\MeusProjetos\AI\RecognizeFaceID\Test" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -59,16 +86,5 @@
       <updated>1749639172074</updated>
     </task>
     <servers />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/Scripts/FaceRecognition.py</url>
-          <line>542</line>
-          <option name="timeStamp" value="4" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
 </project>

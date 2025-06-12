@@ -11,6 +11,7 @@ class StartScreen(tk.Tk):
         self.configurar_estilos()
         self.criar_interface()
         self.process = None  # armazenar processo aberto
+        self.reports_process = None  # processo específico para relatórios
 
     def configurar_janela(self):
         """Configura a janela principal"""
@@ -145,10 +146,10 @@ class StartScreen(tk.Tk):
         self.criar_botao_opcao(
             buttons_container,
             "📊 Relatórios",
-            "Visualizar dados e estatísticas",
+            "Visualizar dados e estatísticas (execução independente)",
             "#f1c40f",
             "#f39c12",
-            self.open_reports  # <- certifique-se de ter esse método criado
+            self.open_reports
         )
 
     def criar_botao_opcao(self, parent, texto, descricao, cor_normal, cor_hover, comando):
@@ -234,21 +235,21 @@ class StartScreen(tk.Tk):
 
     def open_main(self):
         """Abre o script de verificação"""
-        self.open_script("FaceRecognition.py", "🔍 Verificação de Registro")
+        self.open_script("face_recognition_offline.py", "🔍 Verificação de Registro")
 
     def open_register(self):
         """Abre o script de registro"""
         self.open_script("Register.py", "📝 Novo Registro")
 
     def open_reports(self):
-        """Abre o script de relatorios"""
-        self.open_script("Resume.py", "📊 Relatórios")
+        """Abre o script de relatórios (execução independente)"""
+        self.open_reports_script("event_controller_offline.py", "📊 Relatórios")
 
     def open_script(self, script_name, action_name):
-        """Abre um script Python com feedback visual"""
+        """Abre um script Python com feedback visual (para verificação e registro)"""
         if self.process and self.process.poll() is None:
             self.mostrar_aviso("⚠️ Processo Ativo",
-                               "Já existe uma janela aberta.\nFeche-a antes de abrir outra.")
+                               "Já existe uma janela de verificação/registro aberta.\nFeche-a antes de abrir outra.")
             return
 
         try:
@@ -287,6 +288,50 @@ class StartScreen(tk.Tk):
                 fg="#ff4444"
             )
 
+    def open_reports_script(self, script_name, action_name):
+        """Abre o script de relatórios com execução independente"""
+        # Verificar se já existe um processo de relatórios ativo
+        if self.reports_process and self.reports_process.poll() is None:
+            self.mostrar_aviso("⚠️ Relatórios Já Abertos",
+                               "A janela de relatórios já está aberta.\nFeche-a antes de abrir outra.")
+            return
+
+        try:
+            self.status_label.config(
+                text=f"🚀 Iniciando: {action_name}...",
+                fg="#ffaa00"
+            )
+            self.update()
+
+            # Verificar se o arquivo existe
+            if not os.path.exists(script_name):
+                self.mostrar_erro("❌ Arquivo Não Encontrado",
+                                  f"O arquivo '{script_name}' não foi encontrado.")
+                self.status_label.config(
+                    text="❌ Erro ao iniciar processo",
+                    fg="#ff4444"
+                )
+                return
+
+            python_cmd = "python" if os.name == "nt" else "python3"
+            self.reports_process = subprocess.Popen([python_cmd, script_name])
+
+            self.status_label.config(
+                text=f"✅ {action_name} iniciado com sucesso (execução independente)",
+                fg="#00ff88"
+            )
+
+            # Voltar ao status normal após 3 segundos
+            self.after(3000, self.resetar_status)
+
+        except Exception as e:
+            self.mostrar_erro("❌ Erro de Execução",
+                              f"Erro ao executar '{script_name}':\n{str(e)}")
+            self.status_label.config(
+                text="❌ Erro ao iniciar processo",
+                fg="#ff4444"
+            )
+
     def resetar_status(self):
         """Reseta o status para o padrão"""
         self.status_label.config(
@@ -302,7 +347,19 @@ class StartScreen(tk.Tk):
         """Mostra mensagem de erro estilizada"""
         messagebox.showerror(titulo, mensagem)
 
+    def on_closing(self):
+        """Método chamado quando a janela é fechada"""
+        # Fechar processos ativos se existirem
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
+
+        if self.reports_process and self.reports_process.poll() is None:
+            self.reports_process.terminate()
+
+        self.destroy()
+
 
 if __name__ == "__main__":
     app = StartScreen()
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)  # Configurar fechamento
     app.mainloop()
