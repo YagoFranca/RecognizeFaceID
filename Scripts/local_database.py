@@ -405,3 +405,30 @@ def deserialize_encoding(serialized_encoding: bytes):
         logger.error(f"Erro ao deserializar encoding: {e}")
         return None
 
+def get_registration_by_id(self, registro_id):
+    """Busca um registro específico pelo ID"""
+    query = "SELECT * FROM registrations WHERE id = ?"
+    result = self.execute_query(query, (registro_id,))
+    return result[0] if result else None
+
+def update_registration(self, registro_id, name, group_name, phone, sync_status):
+    """Atualiza um registro existente"""
+    query = '''UPDATE registrations 
+               SET name = ?, group_name = ?, phone = ?, sync_status = ?, updated_at = ?
+               WHERE id = ?'''
+    from datetime import datetime
+    updated_at = datetime.now().isoformat()
+    return self.execute_query(query, (name, group_name, phone, sync_status, updated_at, registro_id))
+
+def add_registration(self, name, group_name, phone, sync_status='pending'):
+    """Adiciona um novo registro"""
+    query = '''INSERT INTO registrations (name, group_name, phone, sync_status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)'''
+    from datetime import datetime
+    now = datetime.now().isoformat()
+    return self.execute_query(query, (name, group_name, phone, sync_status, now, now))
+
+def delete_registration(self, registro_id):
+    """Deleta um registro"""
+    query = "DELETE FROM registrations WHERE id = ?"
+    return self.execute_query(query, (registro_id,))
