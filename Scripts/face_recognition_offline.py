@@ -1,6 +1,6 @@
 """
 Sistema de Reconhecimento Facial Integrado com Banco Local
-Versão Offline-First do Sistema Original
+Versão Melhorada com Maior Precisão e Controle de Falsos Positivos
 Autor: Sistema de Reconhecimento Facial
 """
 
@@ -21,6 +21,27 @@ import tkinter as tk
 # Importar módulos do sistema offline
 from local_database import LocalDatabase, serialize_encoding, deserialize_encoding
 from sync_manager import create_sync_manager_from_config
+
+
+# CONFIGURAÇÕES DE PRECISÃO MELHORADAS
+class RecognitionConfig:
+    # Threshold mais restritivo para reduzir falsos positivos
+    FACE_DISTANCE_THRESHOLD = 0.45  # Reduzido de 0.6 padrão para 0.45
+
+    # Threshold de confiança mínima
+    MIN_CONFIDENCE_THRESHOLD = 0.55  # 55% de confiança mínima
+
+    # Número de frames consecutivos para confirmar reconhecimento
+    CONFIRMATION_FRAMES = 5  # Precisa reconhecer por 5 frames seguidos
+
+    # Tamanho mínimo da face para processar (evita faces muito pequenas/distantes)
+    MIN_FACE_SIZE = 50  # pixels
+
+    # Número máximo de faces para processar simultaneamente
+    MAX_FACES_TO_PROCESS = 3
+
+    # Tempo mínimo entre reconhecimentos da mesma pessoa (segundos)
+    MIN_TIME_BETWEEN_SAME_PERSON = 3
 
 
 # Função para resolução de caminhos (compatível com PyInstaller)
@@ -69,12 +90,14 @@ COLORS = {
     'surface': (45, 55, 72),  # Superfície
     'text_primary': (255, 255, 255),  # Texto principal
     'text_secondary': (160, 174, 192),  # Texto secundário
-    'border': (74, 85, 104)  # Bordas
+    'border': (74, 85, 104),  # Bordas
+    'unknown': (255, 165, 0),  # Laranja para pessoa desconhecida
+    'low_confidence': (255, 255, 0)  # Amarelo para baixa confiança
 }
 
 def on_close():
     print("Janela será fechada!")
-    root.destroy()  # fecha a janela
+    root.destroy()
 
 def draw_gradient_rect(img, pt1, pt2, color1, color2, vertical=True):
     """Desenha um retângulo com gradiente"""
@@ -129,7 +152,10 @@ def draw_status_indicator(img, x, y, status, text):
         'new_registration': COLORS['success'],
         'already_registered': COLORS['info'],
         'offline': COLORS['warning'],
-        'online': COLORS['success']
+        'online': COLORS['success'],
+        'unknown_person': COLORS['unknown'],
+        'low_confidence': COLORS['low_confidence'],
+        'confirming': COLORS['accent']
     }
 
     color = colors.get(status, COLORS['text_secondary'])
@@ -149,7 +175,8 @@ def draw_notification_banner(img, x, y, w, h, message, notification_type="info")
         'success': COLORS['success'],
         'info': COLORS['info'],
         'warning': COLORS['warning'],
-        'error': COLORS['error']
+        'error': COLORS['error'],
+        'unknown': COLORS['unknown']
     }
 
     banner_color = colors.get(notification_type, COLORS['info'])
@@ -165,9 +192,12 @@ def draw_notification_banner(img, x, y, w, h, message, notification_type="info")
     if notification_type == 'success':
         # Checkmark verde
         cv2.circle(img, (x + 40, y + h // 2), 20, COLORS['text_primary'], 3)
-        # Simular checkmark com linhas
         cv2.line(img, (x + 30, y + h // 2), (x + 38, y + h // 2 + 8), COLORS['text_primary'], 4)
         cv2.line(img, (x + 38, y + h // 2 + 8), (x + 50, y + h // 2 - 8), COLORS['text_primary'], 4)
+    elif notification_type == 'unknown':
+        # Ponto de interrogação para pessoa desconhecida
+        cv2.circle(img, (x + 40, y + h // 2), 25, COLORS['text_primary'], 4)
+        cv2.putText(img, "?", (x + 33, y + h // 2 + 9), cv2.FONT_HERSHEY_SIMPLEX, 1.2, COLORS['text_primary'], 3)
     elif notification_type == 'info':
         # Círculo info
         cv2.circle(img, (x + 40, y + h // 2), 25, COLORS['text_primary'], 4)
@@ -199,8 +229,8 @@ def create_modern_interface(width=1280, height=800):
 
     # Header
     draw_gradient_rect(img, (0, 0), (width, 80), COLORS['primary'], COLORS['accent'])
-    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL", (45, 45),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.0, COLORS['text_primary'], 3)
+    cv2.putText(img, "SISTEMA DE RECONHECIMENTO FACIAL - PRECISAO MELHORADA", (45, 45),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, COLORS['text_primary'], 3)
 
     # Timestamp
     now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
@@ -211,7 +241,7 @@ def create_modern_interface(width=1280, height=800):
 
 
 class OfflineFaceRecognitionSystem:
-    """Sistema de reconhecimento facial offline-first"""
+    """Sistema de reconhecimento facial offline-first com precisão melhorada"""
 
     def __init__(self):
         # Inicializar banco local e sincronização
@@ -221,7 +251,7 @@ class OfflineFaceRecognitionSystem:
         # Carregar encodings do banco local
         self.load_encodings_from_database()
 
-        # Variáveis de controle
+        # Variáveis de controle melhoradas
         self.modeType = 0
         self.counter = 0
         self.id = -1
@@ -240,11 +270,25 @@ class OfflineFaceRecognitionSystem:
         self.has_internet = False
         self.last_sync_check = 0
 
+        # Variáveis para controle de precisão
+        self.recognition_history = {}  # Histórico de reconhecimentos por ID
+        self.confirmation_counter = {}  # Contador de confirmações por pessoa
+        self.last_recognition_time = {}  # Último tempo de reconhecimento por pessoa
+        self.current_recognition_confidence = 0.0
+        self.unknown_face_counter = 0
+
+        # Configuração
+        self.config = RecognitionConfig()
+
         # Iniciar sincronização automática
         self.auto_sync_enabled = True
         self.start_auto_sync()
 
-        print("🚀 Sistema de reconhecimento facial offline-first iniciado!")
+        print("🚀 Sistema de reconhecimento facial melhorado iniciado!")
+        print(f"📊 Configurações de precisão:")
+        print(f"   - Threshold de distância: {self.config.FACE_DISTANCE_THRESHOLD}")
+        print(f"   - Confiança mínima: {self.config.MIN_CONFIDENCE_THRESHOLD}")
+        print(f"   - Frames de confirmação: {self.config.CONFIRMATION_FRAMES}")
 
     def load_encodings_from_database(self):
         """Carrega encodings do banco de dados local"""
@@ -268,6 +312,62 @@ class OfflineFaceRecognitionSystem:
         except Exception as e:
             print(f"❌ Erro ao carregar encodings: {e}")
             self.encodeListKnown, self.studentIds = [], []
+
+    def calculate_face_confidence(self, face_distance):
+        """Calcula a confiança do reconhecimento baseado na distância"""
+        if face_distance > self.config.FACE_DISTANCE_THRESHOLD:
+            return 0.0
+
+        # Converte distância em porcentagem de confiança
+        confidence = (1 - face_distance) * 100
+        return max(0, min(100, confidence))
+
+    def is_face_size_adequate(self, face_location):
+        """Verifica se o tamanho da face é adequado para reconhecimento"""
+        top, right, bottom, left = face_location
+        face_width = right - left
+        face_height = bottom - top
+
+        return (face_width >= self.config.MIN_FACE_SIZE and
+                face_height >= self.config.MIN_FACE_SIZE)
+
+    def should_process_recognition(self, student_id):
+        """Verifica se deve processar o reconhecimento baseado no tempo"""
+        current_time = time.time()
+
+        if student_id in self.last_recognition_time:
+            time_diff = current_time - self.last_recognition_time[student_id]
+            if time_diff < self.config.MIN_TIME_BETWEEN_SAME_PERSON:
+                return False
+
+        return True
+
+    def update_confirmation_counter(self, student_id):
+        """Atualiza contador de confirmação para uma pessoa"""
+        if student_id not in self.confirmation_counter:
+            self.confirmation_counter[student_id] = 0
+
+        self.confirmation_counter[student_id] += 1
+
+        # Limpar contadores de outras pessoas
+        for other_id in list(self.confirmation_counter.keys()):
+            if other_id != student_id:
+                self.confirmation_counter[other_id] = 0
+
+    def is_recognition_confirmed(self, student_id):
+        """Verifica se o reconhecimento foi confirmado por frames suficientes"""
+        return (student_id in self.confirmation_counter and
+                self.confirmation_counter[student_id] >= self.config.CONFIRMATION_FRAMES)
+
+    def reset_recognition_state(self):
+        """Reseta o estado de reconhecimento"""
+        self.confirmation_counter.clear()
+        self.modeType = 0
+        self.counter = 0
+        self.studentInfo = {}
+        self.imgStudent = []
+        self.current_recognition_confidence = 0.0
+        self.unknown_face_counter = 0
 
     def start_auto_sync(self):
         """Inicia sincronização automática em background"""
@@ -331,6 +431,8 @@ class OfflineFaceRecognitionSystem:
             success = self.local_db.update_registration(student_id, update_data)
             if success:
                 print(f"✅ Presença atualizada localmente para {student_id}")
+                # Atualizar tempo da última reconfiguração
+                self.last_recognition_time[student_id] = time.time()
             else:
                 print(f"❌ Erro ao atualizar presença para {student_id}")
 
@@ -462,13 +564,19 @@ class OfflineFaceRecognitionSystem:
         cv2.putText(img, f"ID: {self.studentInfo.get('id', 'N/A')}", (x + 20, y + 80),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLORS['text_secondary'], 2)
 
+        # Confiança do reconhecimento
+        confidence_text = f"Confianca: {self.current_recognition_confidence:.1f}%"
+        confidence_color = COLORS['success'] if self.current_recognition_confidence >= 70 else COLORS['warning']
+        cv2.putText(img, confidence_text, (x + 20, y + 110),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, confidence_color, 2)
+
         # Grupo
-        cv2.putText(img, f"Grupo: {self.studentInfo.get('group', 'N/A')}", (x + 20, y + 110),
+        cv2.putText(img, f"Grupo: {self.studentInfo.get('group', 'N/A')}", (x + 20, y + 140),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLORS['text_secondary'], 2)
 
         # Frequência
         attendance = self.studentInfo.get('total_attendance', 0)
-        cv2.putText(img, f"Presencas: {attendance}", (x + 20, y + 140),
+        cv2.putText(img, f"Presencas: {attendance}", (x + 20, y + 170),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLORS['success'], 2)
 
         # Última presença
@@ -480,7 +588,7 @@ class OfflineFaceRecognitionSystem:
             except:
                 pass
 
-        cv2.putText(img, f"Ultima: {last_attendance}", (x + 20, y + 170),
+        cv2.putText(img, f"Ultima: {last_attendance}", (x + 20, y + 200),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS['text_secondary'], 1)
 
     def draw_camera_feed(self, img, camera_img, x, y, w, h):
@@ -531,45 +639,135 @@ class OfflineFaceRecognitionSystem:
             connection_status = "online" if self.has_internet else "offline"
             connection_text = "Online" if self.has_internet else "Offline"
 
-            if faceCurFrame:
+            # Limitar número de faces processadas
+            if len(faceCurFrame) > self.config.MAX_FACES_TO_PROCESS:
+                faceCurFrame = faceCurFrame[:self.config.MAX_FACES_TO_PROCESS]
+                encodeCurFrame = encodeCurFrame[:self.config.MAX_FACES_TO_PROCESS]
+
+            if faceCurFrame and len(self.encodeListKnown) > 0:
                 status = "active"
-                status_text = f"Rosto detectado ({len(faceCurFrame)})"
+                status_text = f"Analisando {len(faceCurFrame)} rosto(s)..."
                 self.no_face_counter = 0
 
-                for encodeFace, faceLoc in zip(encodeCurFrame, faceCurFrame):
-                    matches = face_recognition.compare_faces(self.encodeListKnown, encodeFace)
-                    faceDis = face_recognition.face_distance(self.encodeListKnown, encodeFace)
+                best_match_id = None
+                best_confidence = 0
+                best_face_loc = None
 
-                    if len(faceDis) > 0:
-                        matchIndex = np.argmin(faceDis)
-                        if matches[matchIndex]:
-                            # Desenha retângulo no rosto reconhecido
+                for encodeFace, faceLoc in zip(encodeCurFrame, faceCurFrame):
+                    # Verificar tamanho adequado da face
+                    if not self.is_face_size_adequate(faceLoc):
+                        continue
+
+                    # Calcular distâncias para todas as faces conhecidas
+                    face_distances = face_recognition.face_distance(self.encodeListKnown, encodeFace)
+                    matches = face_recognition.compare_faces(self.encodeListKnown, encodeFace,
+                                                           tolerance=self.config.FACE_DISTANCE_THRESHOLD)
+
+                    if len(face_distances) > 0:
+                        min_distance_index = np.argmin(face_distances)
+                        min_distance = face_distances[min_distance_index]
+
+                        # Calcular confiança
+                        confidence = self.calculate_face_confidence(min_distance)
+
+                        print(f"🔍 Distância mínima: {min_distance:.3f}, Confiança: {confidence:.1f}%")
+
+                        # Verificar se passou nos thresholds
+                        if (matches[min_distance_index] and
+                            confidence >= self.config.MIN_CONFIDENCE_THRESHOLD and
+                            min_distance <= self.config.FACE_DISTANCE_THRESHOLD):
+
+                            potential_id = self.studentIds[min_distance_index]
+
+                            # Verificar se é a melhor correspondência até agora
+                            if confidence > best_confidence:
+                                best_match_id = potential_id
+                                best_confidence = confidence
+                                best_face_loc = faceLoc
+
+                        else:
+                            # Face desconhecida ou confiança baixa
                             y1, x2, y2, x1 = [val * 4 for val in faceLoc]
                             bbox = x1, y1, x2 - x1, y2 - y1
-                            img_resized = cvzone.cornerRect(img_resized, bbox, rt=0,
-                                                            colorR=COLORS['success'])
 
-                            self.id = self.studentIds[matchIndex]
+                            if confidence < self.config.MIN_CONFIDENCE_THRESHOLD:
+                                # Baixa confiança - amarelo
+                                img_resized = cvzone.cornerRect(img_resized, bbox, rt=0,
+                                                              colorR=COLORS['low_confidence'])
+                                cv2.putText(img_resized, f"Baixa Conf: {confidence:.1f}%",
+                                          (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                          COLORS['low_confidence'], 2)
+                                status = "low_confidence"
+                                status_text = f"Baixa confiança: {confidence:.1f}%"
+                            else:
+                                # Pessoa desconhecida - laranja
+                                img_resized = cvzone.cornerRect(img_resized, bbox, rt=0,
+                                                              colorR=COLORS['unknown'])
+                                cv2.putText(img_resized, "DESCONHECIDO",
+                                          (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                          COLORS['unknown'], 2)
+
+                                self.unknown_face_counter += 1
+                                if self.unknown_face_counter > 30:  # 1 segundo a 30fps
+                                    status = "unknown_person"
+                                    status_text = "Pessoa desconhecida detectada"
+                                    self.set_notification("PESSOA DESCONHECIDA DETECTADA!", "unknown")
+                                    self.unknown_face_counter = 0
+
+                # Processar melhor correspondência
+                if best_match_id is not None:
+                    self.current_recognition_confidence = best_confidence
+
+                    # Desenhar retângulo verde na melhor correspondência
+                    y1, x2, y2, x1 = [val * 4 for val in best_face_loc]
+                    bbox = x1, y1, x2 - x1, y2 - y1
+                    img_resized = cvzone.cornerRect(img_resized, bbox, rt=0,
+                                                  colorR=COLORS['success'])
+
+                    # Mostrar confiança no retângulo
+                    cv2.putText(img_resized, f"{best_confidence:.1f}%",
+                              (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                              COLORS['success'], 2)
+
+                    # Atualizar contador de confirmação
+                    self.update_confirmation_counter(best_match_id)
+
+                    # Verificar se precisa de mais confirmações
+                    if not self.is_recognition_confirmed(best_match_id):
+                        confirmations_needed = (self.config.CONFIRMATION_FRAMES -
+                                              self.confirmation_counter.get(best_match_id, 0))
+                        status = "confirming"
+                        status_text = f"Confirmando... ({confirmations_needed} frames restantes)"
+                    else:
+                        # Reconhecimento confirmado
+                        if self.should_process_recognition(best_match_id):
+                            self.id = best_match_id
                             if self.counter == 0:
                                 status = "loading"
                                 status_text = "Carregando dados..."
                                 self.counter = 1
                                 self.modeType = 1
-            else:
-                self.no_face_counter += 1
-                if self.no_face_counter > self.MAX_NO_FACE_FRAMES:
-                    self.modeType = 0
-                    self.counter = 0
-                    self.studentInfo = {}
-                    self.imgStudent = []
+                        else:
+                            status = "already_registered"
+                            status_text = f"Aguardando cooldown para {best_match_id}"
+                else:
+                    # Limpar contadores se não há correspondência válida
+                    self.confirmation_counter.clear()
+                    self.unknown_face_counter += 1
 
-            # Processa reconhecimento
+            else:
+                # Sem faces detectadas
+                self.no_face_counter += 1
+                self.unknown_face_counter = 0
+                if self.no_face_counter > self.MAX_NO_FACE_FRAMES:
+                    self.reset_recognition_state()
+
+            # Processa reconhecimento confirmado
             if self.counter != 0:
                 if self.counter == 1:
                     self.studentInfo = self.get_student_info_local(self.id)
                     if self.studentInfo is None:
-                        self.counter = 0
-                        self.modeType = 0
+                        self.reset_recognition_state()
                         continue
 
                     self.imgStudent = self.get_student_image_local(self.id)
@@ -587,21 +785,18 @@ class OfflineFaceRecognitionSystem:
                         if self.update_attendance_local(self.id, new_attendance):
                             self.studentInfo['total_attendance'] = new_attendance
                             status = "new_registration"
-                            status_text = f"Nova presença: {self.studentInfo['name']}"
-                            self.set_notification(f"{self.studentInfo['name']} - PRESENCA REGISTRADA!", "success")
-                            print(f"✅ Nova presença registrada para {self.studentInfo['name']}")
+                            status_text = f"Nova presença: {self.studentInfo['name']} ({self.current_recognition_confidence:.1f}%)"
+                            self.set_notification(f"{self.studentInfo['name']} - PRESENCA REGISTRADA! ({self.current_recognition_confidence:.1f}%)", "success")
+                            print(f"✅ Nova presença registrada para {self.studentInfo['name']} com {self.current_recognition_confidence:.1f}% de confiança")
                         else:
                             status = "error"
                             status_text = "Erro ao registrar presença"
                             self.set_notification("ERRO AO REGISTRAR PRESENCA!", "error")
 
-                if self.counter <= 20:
+                if self.counter <= 60:  # Aumentado para mostrar informações por mais tempo
                     self.counter += 1
                 else:
-                    self.counter = 0
-                    self.modeType = 0
-                    self.studentInfo = {}
-                    self.imgStudent = []
+                    self.reset_recognition_state()
 
             # Desenhar interface
             # Status do sistema
@@ -610,35 +805,47 @@ class OfflineFaceRecognitionSystem:
             # Status de conexão
             draw_status_indicator(interface, 50, 130, connection_status, f"Conexao: {connection_text}")
 
+            # Status de precisão
+            precision_text = f"Threshold: {self.config.FACE_DISTANCE_THRESHOLD} | Min Conf: {self.config.MIN_CONFIDENCE_THRESHOLD}%"
+            draw_status_indicator(interface, 50, 160, "info", precision_text)
+
             # Card de informações do usuário
-            draw_modern_card(interface, 50, 180, 400, 230, "Informacoes do Usuario", self.draw_student_info_card)
+            draw_modern_card(interface, 50, 200, 420, 250, "Informacoes do Usuario", self.draw_student_info_card)
 
             # Feed da câmera
             self.draw_camera_feed(interface, img_resized, 500, 100, 640, 480)
 
             # Imagem do usuário (se disponível)
             if self.imgStudent is not None and len(self.imgStudent) > 0:
-               try:
-                   y = 250  # sobe 100px em relação ao rodapé
-                   x = 300  # move 50px à direita
+                try:
+                    y = 270  # Ajustado para nova posição
+                    x = 300
 
-                   imgStudent_resized = cv2.resize(self.imgStudent, (130, 130))
-                   interface[y:y+130, x:x+130] = imgStudent_resized
-               except:
-                   pass
+                    imgStudent_resized = cv2.resize(self.imgStudent, (130, 130))
+                    interface[y:y+130, x:x+130] = imgStudent_resized
+
+                    # Moldura na imagem do usuário
+                    cv2.rectangle(interface, (x-2, y-2), (x+132, y+132), COLORS['primary'], 2)
+                except:
+                    pass
 
             # Notificação (se ativa)
             if self.notification_timer > 0:
-                draw_notification_banner(interface, 50, 680, 800, 80,
+                draw_notification_banner(interface, 50, 680, 900, 80,
                                        self.notification_message, self.notification_type)
                 self.notification_timer -= 1
 
             # Estatísticas do banco local
             stats = self.local_db.get_database_stats()
-            draw_metric_card(interface, 50, 430, 200, 100, stats['total_registrations'], "Registros Locais")
-            draw_metric_card(interface, 270, 430, 200, 100, stats['pending_sync'], "Pendentes Sync")
+            draw_metric_card(interface, 50, 470, 180, 100, stats['total_registrations'], "Registros Locais")
+            draw_metric_card(interface, 250, 470, 180, 100, stats['pending_sync'], "Pendentes Sync")
 
-            cv2.imshow("Sistema de Reconhecimento Facial", interface)
+            # Métricas de precisão
+            total_confirmations = sum(self.confirmation_counter.values())
+            draw_metric_card(interface, 50, 590, 180, 80, f"{self.current_recognition_confidence:.1f}%", "Confianca Atual")
+            draw_metric_card(interface, 250, 590, 180, 80, total_confirmations, "Confirmacoes")
+
+            cv2.imshow("Sistema de Reconhecimento Facial - Melhorado", interface)
 
             # Controles de teclado
             key = cv2.waitKey(1) & 0xFF
@@ -658,25 +865,61 @@ class OfflineFaceRecognitionSystem:
                 # Recarregar encodings
                 print("🔄 Recarregando encodings do banco local...")
                 self.load_encodings_from_database()
+                self.reset_recognition_state()
+            elif key == ord('c'):
+                # Limpar estado de reconhecimento
+                print("🧹 Limpando estado de reconhecimento...")
+                self.reset_recognition_state()
+            elif key == ord('t'):
+                # Ajustar threshold (para testes)
+                if self.config.FACE_DISTANCE_THRESHOLD == 0.45:
+                    self.config.FACE_DISTANCE_THRESHOLD = 0.4
+                    print("🎯 Threshold mais restritivo: 0.4")
+                elif self.config.FACE_DISTANCE_THRESHOLD == 0.4:
+                    self.config.FACE_DISTANCE_THRESHOLD = 0.5
+                    print("🎯 Threshold mais permissivo: 0.5")
+                else:
+                    self.config.FACE_DISTANCE_THRESHOLD = 0.45
+                    print("🎯 Threshold padrão: 0.45")
 
         # Limpeza
         self.auto_sync_enabled = False
         cap.release()
         cv2.destroyAllWindows()
 
+
 def main():
     """Função principal"""
     try:
+        print("=" * 60)
+        print("🚀 SISTEMA DE RECONHECIMENTO FACIAL MELHORADO")
+        print("=" * 60)
+        print("✨ Melhorias implementadas:")
+        print("   • Threshold de distância mais restritivo (0.45)")
+        print("   • Verificação de confiança mínima (55%)")
+        print("   • Confirmação por múltiplos frames (5 frames)")
+        print("   • Detecção de pessoas desconhecidas")
+        print("   • Verificação de tamanho mínimo da face")
+        print("   • Cooldown entre reconhecimentos")
+        print("   • Indicadores visuais de confiança")
+        print("=" * 60)
+        print("🎮 Controles:")
+        print("   • Q: Sair")
+        print("   • S: Sincronização manual")
+        print("   • R: Recarregar encodings")
+        print("   • C: Limpar estado de reconhecimento")
+        print("   • T: Ajustar threshold de precisão")
+        print("=" * 60)
+
         system = OfflineFaceRecognitionSystem()
         system.run()
     except KeyboardInterrupt:
         print("\n👋 Sistema encerrado pelo usuário")
     except Exception as e:
         print(f"❌ Erro no sistema: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
     main()
-
-
-
