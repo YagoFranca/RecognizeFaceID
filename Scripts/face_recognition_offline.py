@@ -5,6 +5,8 @@ Autor: Sistema de Reconhecimento Facial
 """
 
 import pickle
+from logging import root
+
 import cv2
 import face_recognition
 import cvzone
@@ -234,7 +236,7 @@ class OfflineFaceRecognitionSystem:
         self.notification_message = ""
         self.notification_type = ""
         self.notification_timer = 0
-        self.NOTIFICATION_DURATION = 150
+        self.NOTIFICATION_DURATION = 30
 
         # Status de conexão
         self.has_internet = False
@@ -595,7 +597,7 @@ class OfflineFaceRecognitionSystem:
                             status_text = "Erro ao registrar presença"
                             self.set_notification("ERRO AO REGISTRAR PRESENCA!", "error")
 
-                if self.counter <= 20:
+                if self.counter <= 5:
                     self.counter += 1
                 else:
                     self.counter = 0

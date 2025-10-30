@@ -2,6 +2,7 @@
 Sistema de Controle de Eventos Integrado com Banco Local
 Versão Offline-First do Sistema Original
 Autor: Sistema de Reconhecimento Facial
+COM EDIÇÃO E EXCLUSÃO DE USUÁRIOS
 """
 
 import tkinter as tk
@@ -10,7 +11,6 @@ from datetime import datetime
 import threading
 import time
 import os
-from turtle import fd
 
 # Importar módulos do sistema offline
 from local_database import LocalDatabase, serialize_encoding, deserialize_encoding
@@ -51,7 +51,7 @@ class EventoControllerOffline:
 
                     # Atualizar status na UI se disponível
                     if hasattr(self, 'connection_status_label'):
-                        status_text = "🌐 Online" if self.has_internet else "📴 Offline"
+                        status_text = "🌐 Online" if self.has_internet else "🔴 Offline"
                         color = "green" if self.has_internet else "red"
                         self.janela.after(0, lambda: self.connection_status_label.config(
                             text=status_text, fg=color))
@@ -264,71 +264,47 @@ class EventoControllerOffline:
         self.contador_label.config(text=f"Total: {len(self.participantes_presenciais)} participantes")
 
     def sincronizar_manual(self):
-        """Executa sincronização manual"""
+        """Executa sincronização manual com melhor tratamento de erros"""
         if not self.has_internet:
-            messagebox.showwarning("Sem Conexão", "Não há conexão com a internet para sincronização.")
+            messagebox.showwarning("Sem Conexão",
+                                   "Não há conexão com a internet para sincronização.\n"
+                                   "As alterações ficaram salvas localmente e serão sincronizadas automaticamente quando houver conexão.")
             return
 
         try:
+            # Mostrar que está sincronizando
             self.sync_button.config(state="disabled", text="🔄 Sincronizando...")
+            self.janela.update()
+
+            print("🔄 Iniciando sincronização manual...")
             result = self.sync_manager.full_sync()
 
-            # Mostrar resultado
-            if result['status'] == 'success':
-                message = f"Sincronização concluída!\n\nUploads: {result['uploads_success']}\nDownloads: {result['downloads']}"
-                messagebox.showinfo("Sincronização", message)
+            print(f"📊 Resultado da sincronização: {result}")
+
+            # Mostrar resultado detalhado
+            if result.get('status') == 'success':
+                message = (f"✅ Sincronização concluída com sucesso!\n\n"
+                           f"📤 Uploads realizados: {result.get('uploads_success', 0)}\n"
+                           f"📥 Downloads realizados: {result.get('downloads', 0)}\n"
+                           f"❌ Falhas no upload: {result.get('uploads_failed', 0)}")
+
+                messagebox.showinfo("Sincronização Concluída", message)
+
+                # Atualizar lista se a janela de registros estiver aberta
+                if hasattr(self, 'tree'):
+                    self.carregar_registros()
+
             else:
-                messagebox.showerror("Erro", result['message'])
+                error_msg = result.get('message', 'Erro desconhecido na sincronização')
+                messagebox.showerror("Erro na Sincronização",
+                                     f"❌ Falha na sincronização:\n\n{error_msg}")
 
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro na sincronização: {e}")
+            print(f"❌ Exceção durante sincronização manual: {str(e)}")
+            messagebox.showerror("Erro", f"Erro durante a sincronização:\n{str(e)}")
         finally:
+            # Sempre restaurar o botão
             self.sync_button.config(state="normal", text="🔄 Sincronizar")
-
-    def mostrar_registros_locais(self):
-        """Mostra janela com registros do banco local"""
-        registros = self.local_db.get_all_registrations()
-        stats = self.local_db.get_database_stats()
-
-        # Criar janela de registros
-        registros_window = tk.Toplevel(self.janela)
-        registros_window.title("Registros do Banco Local")
-        registros_window.geometry("900x600")
-        registros_window.configure(bg="#f0f0f0")
-
-        # Header com estatísticas
-        header_frame = tk.Frame(registros_window, bg="#f0f0f0")
-        header_frame.pack(fill="x", padx=10, pady=10)
-
-        stats_text = f"Total: {stats['total_registrations']} | Pendentes: {stats['pending_sync']} | Sincronizados: {stats['synced']} | Erros: {stats['error']}"
-        tk.Label(header_frame, text=stats_text, bg="#f0f0f0", fg="black", font=("Arial", 12, "bold")).pack(pady=10)
-
-        # Tabela de registros
-        columns = ("ID", "Nome", "Grupo", "Telefone", "Status Sync", "Última Atualização")
-        tree = ttk.Treeview(registros_window, columns=columns, show="headings", height=20)
-
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120)
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(registros_window, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
-
-        # Adicionar registros
-        for registro in registros:
-            status_icon = {"pending": "⏳", "synced": "✅", "error": "❌"}.get(registro['sync_status'], "❓")
-            tree.insert("", "end", values=(
-                registro['id'],
-                registro['name'],
-                registro['group_name'],
-                registro['phone'],
-                f"{status_icon} {registro['sync_status']}",
-                registro['updated_at'][:19] if registro['updated_at'] else 'N/A'
-            ))
-
-        tree.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
-        scrollbar.pack(side="right", fill="y", pady=10, padx=(0, 10))
 
     def mostrar_registros_locais(self):
         """Mostra janela com registros do banco local com opções de edição"""
@@ -346,6 +322,9 @@ class EventoControllerOffline:
         header_frame.pack(fill="x", padx=10, pady=10)
 
         stats_text = f"Total: {stats['total_registrations']} | Pendentes: {stats['pending_sync']} | Sincronizados: {stats['synced']} | Erros: {stats['error']}"
+        if 'total_history' in stats:
+            stats_text += f" | Histórico: {stats['total_history']}"
+        
         tk.Label(header_frame, text=stats_text, bg="#f0f0f0", fg="black", font=("Arial", 12, "bold")).pack(pady=5)
 
         # Frame principal para tabela e botões
@@ -357,16 +336,16 @@ class EventoControllerOffline:
         buttons_frame.pack(fill="x", pady=(0, 10))
 
         # Botões de ação
-        tk.Button(buttons_frame, text="Editar Selecionado", command=lambda: self.editar_registro_selecionado(),
+        tk.Button(buttons_frame, text="✏️ Editar Selecionado", command=lambda: self.editar_registro_selecionado(),
                   bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=(0, 5))
 
-        tk.Button(buttons_frame, text="Excluir Selecionado", command=lambda: self.excluir_registro_selecionado(),
+        tk.Button(buttons_frame, text="🗑️ Excluir Selecionado", command=lambda: self.excluir_registro_selecionado(),
                   bg="#f44336", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
 
-        tk.Button(buttons_frame, text="Novo Registro", command=lambda: self.novo_registro(),
-                  bg="#2196F3", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+        tk.Button(buttons_frame, text="📊 Ver Todo Histórico", command=lambda: self.ver_todo_historico_preservado(),
+                  bg="#9C27B0", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
 
-        tk.Button(buttons_frame, text="Atualizar Lista", command=lambda: self.atualizar_lista_registros(),
+        tk.Button(buttons_frame, text="🔄 Atualizar Lista", command=lambda: self.atualizar_lista_registros(),
                   bg="#FF9800", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
 
         # Frame para tabela
@@ -374,7 +353,7 @@ class EventoControllerOffline:
         table_frame.pack(fill="both", expand=True)
 
         # Tabela de registros
-        columns = ("ID", "Nome", "Grupo", "Telefone", "Status Sync", "Última Atualização")
+        columns = ("ID", "Nome", "Grupo", "Telefone", "Presenças", "Status Sync", "Última Atualização")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=20)
 
         for col in columns:
@@ -385,6 +364,8 @@ class EventoControllerOffline:
                 self.tree.column(col, width=150)
             elif col == "Telefone":
                 self.tree.column(col, width=120)
+            elif col == "Presenças":
+                self.tree.column(col, width=80)
             elif col == "Última Atualização":
                 self.tree.column(col, width=150)
             else:
@@ -421,6 +402,7 @@ class EventoControllerOffline:
                 registro['name'],
                 registro['group_name'],
                 registro['phone'],
+                registro.get('total_attendance', 0),
                 f"{status_icon} {registro['sync_status']}",
                 registro['updated_at'][:19] if registro['updated_at'] else 'N/A'
             ))
@@ -446,26 +428,15 @@ class EventoControllerOffline:
             'name': values[1],
             'group_name': values[2],
             'phone': values[3],
-            'sync_status': values[4].replace("⏳ ", "").replace("✅ ", "").replace("❌ ", "").replace("❓ ", "")
+            'sync_status': values[5].replace("⏳ ", "").replace("✅ ", "").replace("❌ ", "").replace("❓ ", "")
         }
 
         self.abrir_janela_edicao(registro)
 
-    def novo_registro(self):
-        """Abre janela para criar novo registro"""
-        registro_vazio = {
-            'id': None,
-            'name': '',
-            'group_name': '',
-            'phone': '',
-            'sync_status': 'pending'
-        }
-        self.abrir_janela_edicao(registro_vazio, is_new=True)
-
-    def abrir_janela_edicao(self, registro, is_new=False):
-        """Abre janela de edição/criação de registro"""
+    def abrir_janela_edicao(self, registro):
+        """Abre janela de edição de registro"""
         self.edit_window = tk.Toplevel(self.registros_window)
-        title = "Novo Registro" if is_new else f"Editar Registro ID: {registro['id']}"
+        title = f"Editar Registro ID: {registro['id']}"
         self.edit_window.title(title)
         self.edit_window.geometry("400x300")
         self.edit_window.configure(bg="#f0f0f0")
@@ -506,15 +477,16 @@ class EventoControllerOffline:
         buttons_frame.grid(row=4, column=0, columnspan=2, pady=20)
 
         # Botões
-        tk.Button(buttons_frame, text="Salvar",
-                  command=lambda: self.salvar_registro(registro['id'] if not is_new else None, is_new),
+        tk.Button(buttons_frame, text="💾 Salvar",
+                  command=lambda: self.salvar_registro(registro['id']),
                   bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), width=10).pack(side="left", padx=5)
 
-        tk.Button(buttons_frame, text="Cancelar",
+        tk.Button(buttons_frame, text="❌ Cancelar",
                   command=self.edit_window.destroy,
                   bg="#757575", fg="white", font=("Arial", 10, "bold"), width=10).pack(side="left", padx=5)
 
-    def salvar_registro(self, registro_id, is_new):
+    def salvar_registro(self, registro_id):
+        """Salva registro com sincronização corrigida"""
         nome = self.entry_nome.get().strip()
         grupo = self.entry_grupo.get().strip()
         telefone = self.entry_telefone.get().strip()
@@ -525,66 +497,503 @@ class EventoControllerOffline:
             return
 
         try:
-            if is_new:
-                messagebox.showinfo("Info", "Função de criar novo registro não implementada.")
-            else:
-                update_data = {
-                    'name': nome,
-                    'group_name': grupo,
-                    'phone': telefone,
-                    'sync_status': status
-                }
-                success = self.local_db.update_registration(registro_id, update_data)
-                if success:
-                    messagebox.showinfo("Sucesso", "Registro atualizado com sucesso!")
-                    self.edit_window.destroy()
-                    self.carregar_registros()
+            # Preparar dados para atualização
+            update_data = {
+                'name': nome,
+                'group_name': grupo,
+                'phone': telefone,
+                'sync_status': 'pending'  # Sempre marcar como pendente após edição
+            }
 
-                    # Pergunta se quer salvar em arquivo
-                    if messagebox.askyesno("Exportar", "Deseja salvar este registro em um arquivo?"):
-                        self.salvar_com_dialogo()
+            # Atualizar no banco local
+            print(f"🔄 Atualizando registro ID: {registro_id}")
+            success = self.local_db.update_registration(registro_id, update_data)
 
+            if success:
+                print(f"✅ Registro {registro_id} atualizado no banco local")
+
+                # Tentar sincronizar se houver conexão
+                if self.has_internet:
+                    print("🌐 Conexão disponível, iniciando sincronização...")
+                    try:
+                        result = self.sync_manager.full_sync()
+
+                        if result.get('status') == 'success':
+                            messagebox.showinfo("Sucesso",
+                                                f"Registro atualizado e sincronizado com sucesso!\n"
+                                                f"Uploads: {result.get('uploads_success', 0)}")
+                        else:
+                            messagebox.showwarning("Aviso",
+                                                   f"Registro atualizado localmente, mas falha na sincronização:\n"
+                                                   f"{result.get('message', 'Erro desconhecido')}")
+                    except Exception as sync_error:
+                        print(f"❌ Erro na sincronização: {sync_error}")
+                        messagebox.showwarning("Aviso",
+                                               f"Registro atualizado localmente, mas erro na sincronização:\n{sync_error}")
                 else:
-                    messagebox.showwarning("Aviso", "Registro não encontrado ou não foi possível atualizar.")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar: {str(e)}")
+                    messagebox.showinfo("Sucesso",
+                                        "Registro atualizado localmente!\n"
+                                        "Será sincronizado quando houver conexão com a internet.")
 
-    def salvar_com_dialogo(self):
-        # Diálogo para escolher onde salvar
-        caminho = fd.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("Todos os arquivos", "*.*")],
-            title="Salvar arquivo como"
+                # Fechar janela e atualizar lista
+                self.edit_window.destroy()
+                self.carregar_registros()
+
+            else:
+                messagebox.showerror("Erro",
+                                     f"Não foi possível atualizar o registro ID: {registro_id}\n"
+                                     "Verifique se o registro existe no banco local.")
+
+        except Exception as e:
+            print(f"❌ Erro geral ao salvar registro: {str(e)}")
+            messagebox.showerror("Erro", f"Erro ao salvar registro:\n{str(e)}")
+
+    def excluir_registro_selecionado(self):
+        """Exclui o registro selecionado PRESERVANDO O HISTÓRICO"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Aviso", "Selecione um registro para excluir.")
+            return
+
+        item = self.tree.item(selected[0])
+        registro_id = item['values'][0]
+        nome = item['values'][1]
+        presencas = item['values'][4] if len(item['values']) > 4 else 'N/A'
+
+        # Criar janela de confirmação personalizada
+        confirm_window = tk.Toplevel(self.registros_window)
+        confirm_window.title("⚠️ Confirmar Exclusão")
+        confirm_window.geometry("500x350")
+        confirm_window.configure(bg="#fff3cd")
+        confirm_window.transient(self.registros_window)
+        confirm_window.grab_set()
+        
+        # Centralizar janela
+        confirm_window.update_idletasks()
+        x = (confirm_window.winfo_screenwidth() // 2) - (500 // 2)
+        y = (confirm_window.winfo_screenheight() // 2) - (350 // 2)
+        confirm_window.geometry(f"500x350+{x}+{y}")
+
+        # Frame principal
+        main_frame = tk.Frame(confirm_window, bg="#fff3cd")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Título com ícone
+        title_label = tk.Label(
+            main_frame, 
+            text="⚠️ ATENÇÃO: EXCLUSÃO DE USUÁRIO",
+            font=("Arial", 14, "bold"),
+            bg="#fff3cd",
+            fg="#856404"
         )
-        if not caminho:
-            return  # Usuário cancelou
+        title_label.pack(pady=(0, 20))
 
-        # Conteúdo do CSV
-        conteudo = "Nome,Grupo,Telefone,Status\n"
-        conteudo += f"{self.entry_nome.get()},{self.entry_grupo.get()},{self.entry_telefone.get()},{self.combo_status.get()}\n"
+        # Informações do registro
+        info_frame = tk.LabelFrame(
+            main_frame,
+            text="Dados do Registro",
+            font=("Arial", 11, "bold"),
+            bg="#ffffff",
+            fg="#333"
+        )
+        info_frame.pack(fill="x", pady=(0, 20))
 
-        # Tentativa de salvar
+        info_text = f"""
+ID: {registro_id}
+Nome: {nome}
+Total de Presenças: {presencas}
+
+O QUE VAI ACONTECER:
+✅ O usuário será REMOVIDO do sistema
+✅ Não poderá mais fazer reconhecimento facial
+✅ O HISTÓRICO de presenças será PRESERVADO
+✅ Você poderá consultar o histórico a qualquer momento
+        """
+        
+        tk.Label(
+            info_frame,
+            text=info_text,
+            font=("Arial", 10),
+            bg="#ffffff",
+            fg="#333",
+            justify="left"
+        ).pack(padx=15, pady=15)
+
+        # Pergunta de confirmação
+        question_label = tk.Label(
+            main_frame,
+            text="Tem certeza que deseja EXCLUIR este usuário?",
+            font=("Arial", 11, "bold"),
+            bg="#fff3cd",
+            fg="#856404"
+        )
+        question_label.pack(pady=(0, 20))
+
+        # Variável para resultado
+        result = {'confirmed': False}
+
+        def on_confirm():
+            result['confirmed'] = True
+            confirm_window.destroy()
+
+        def on_cancel():
+            result['confirmed'] = False
+            confirm_window.destroy()
+
+        # Frame para botões
+        buttons_frame = tk.Frame(main_frame, bg="#fff3cd")
+        buttons_frame.pack()
+
+        # Botão Confirmar
+        btn_confirm = tk.Button(
+            buttons_frame,
+            text="🗑️ SIM, EXCLUIR",
+            command=on_confirm,
+            font=("Arial", 11, "bold"),
+            bg="#dc3545",
+            fg="white",
+            width=15,
+            height=2
+        )
+        btn_confirm.pack(side="left", padx=10)
+
+        # Botão Cancelar
+        btn_cancel = tk.Button(
+            buttons_frame,
+            text="❌ CANCELAR",
+            command=on_cancel,
+            font=("Arial", 11, "bold"),
+            bg="#6c757d",
+            fg="white",
+            width=15,
+            height=2
+        )
+        btn_cancel.pack(side="left", padx=10)
+
+        # Aguardar fechamento da janela
+        confirm_window.wait_window()
+
+        # Processar resultado
+        if result['confirmed']:
+            try:
+                # Usar o método delete_user_keep_history do LocalDatabase
+                success = self.local_db.delete_user_keep_history(registro_id)
+
+                if success:
+                    messagebox.showinfo(
+                        "✅ Sucesso",
+                        f"Usuário '{nome}' (ID: {registro_id}) foi excluído!\n\n"
+                        f"📁 O histórico de {presencas} presença(s) foi PRESERVADO.\n"
+                        f"Você pode consultá-lo a qualquer momento."
+                    )
+                    
+                    # Atualizar a lista
+                    self.carregar_registros()
+                    
+                    # Perguntar se quer ver o histórico
+                    if messagebox.askyesno("Ver Histórico", 
+                                           "Deseja visualizar o histórico preservado?"):
+                        self.ver_historico_usuario_deletado(registro_id)
+                else:
+                    messagebox.showerror(
+                        "❌ Erro",
+                        f"Não foi possível excluir o usuário {registro_id}.\n"
+                        "Verifique os logs para mais detalhes."
+                    )
+
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao excluir registro:\n{str(e)}")
+
+    def ver_historico_usuario_deletado(self, user_id):
+        """Mostra o histórico de um usuário deletado"""
         try:
-            with open(caminho, "w", encoding="utf-8") as f:
-                f.write(conteudo)
-            messagebox.showinfo("Sucesso", f"Arquivo salvo em:\n{caminho}")
+            # Buscar histórico
+            history = self.local_db.get_user_attendance_history(user_id)
+            
+            if not history:
+                messagebox.showinfo("Sem Histórico", 
+                                  f"Nenhum histórico encontrado para o usuário {user_id}")
+                return
+
+            # Criar janela de histórico
+            history_window = tk.Toplevel(self.registros_window)
+            history_window.title(f"📊 Histórico do Usuário {user_id}")
+            history_window.geometry("700x500")
+            history_window.configure(bg="#f0f0f0")
+
+            # Header
+            header_frame = tk.Frame(history_window, bg="#2196F3")
+            header_frame.pack(fill="x")
+
+            tk.Label(
+                header_frame,
+                text=f"📊 HISTÓRICO DE PRESENÇAS - {history[0].get('user_name', 'N/A')}",
+                font=("Arial", 14, "bold"),
+                bg="#2196F3",
+                fg="white"
+            ).pack(pady=15)
+
+            # Info do usuário
+            info_frame = tk.Frame(history_window, bg="#f0f0f0")
+            info_frame.pack(fill="x", padx=20, pady=10)
+
+            info_text = (
+                f"ID: {user_id}\n"
+                f"Nome: {history[0].get('user_name', 'N/A')}\n"
+                f"Grupo: {history[0].get('group_name', 'N/A')}\n"
+                f"Total de registros no histórico: {len(history)}"
+            )
+
+            tk.Label(
+                info_frame,
+                text=info_text,
+                font=("Arial", 10),
+                bg="#f0f0f0",
+                justify="left"
+            ).pack(anchor="w")
+
+            # Frame para tabela
+            table_frame = tk.Frame(history_window, bg="#f0f0f0")
+            table_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+            # Criar tabela
+            columns = ("Data/Hora", "Total de Presenças", "Registrado em")
+            tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=200)
+
+            # Adicionar registros
+            for record in history:
+                attendance_date = record.get('attendance_date', 'N/A')
+                total = record.get('total_attendance_at_time', 0)
+                created = record.get('created_at', 'N/A')
+
+                # Formatar datas
+                try:
+                    dt = datetime.fromisoformat(attendance_date)
+                    attendance_date = dt.strftime("%d/%m/%Y %H:%M:%S")
+                except:
+                    pass
+
+                try:
+                    dt = datetime.fromisoformat(created)
+                    created = dt.strftime("%d/%m/%Y %H:%M:%S")
+                except:
+                    pass
+
+                tree.insert("", "end", values=(attendance_date, total, created))
+
+            # Scrollbar
+            scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+
+            tree.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+
+            # Botão fechar
+            btn_frame = tk.Frame(history_window, bg="#f0f0f0")
+            btn_frame.pack(pady=10)
+
+            tk.Button(
+                btn_frame,
+                text="✅ Fechar",
+                command=history_window.destroy,
+                font=("Arial", 10, "bold"),
+                bg="#4CAF50",
+                fg="white",
+                width=15
+            ).pack()
+
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar o arquivo:\n{str(e)}")
+            messagebox.showerror("Erro", f"Erro ao exibir histórico:\n{str(e)}")
+
+    def ver_todo_historico_preservado(self):
+        """Mostra todo o histórico preservado (incluindo usuários deletados)"""
+        try:
+            # Buscar todo histórico
+            history = self.local_db.get_all_attendance_history(limit=200)
+            
+            if not history:
+                messagebox.showinfo("Sem Histórico", 
+                                  "Nenhum histórico encontrado no banco de dados.")
+                return
+
+            # Criar janela
+            history_window = tk.Toplevel(self.registros_window)
+            history_window.title("📂 Histórico Completo de Presenças")
+            history_window.geometry("900x600")
+            history_window.configure(bg="#f0f0f0")
+
+            # Header
+            header_frame = tk.Frame(history_window, bg="#9C27B0")
+            header_frame.pack(fill="x")
+
+            tk.Label(
+                header_frame,
+                text="📂 HISTÓRICO COMPLETO (Incluindo Usuários Deletados)",
+                font=("Arial", 14, "bold"),
+                bg="#9C27B0",
+                fg="white"
+            ).pack(pady=15)
+
+            # Info
+            info_label = tk.Label(
+                history_window,
+                text=f"Total de registros no histórico: {len(history)}",
+                font=("Arial", 11, "bold"),
+                bg="#f0f0f0"
+            )
+            info_label.pack(pady=10)
+
+            # Frame para tabela
+            table_frame = tk.Frame(history_window, bg="#f0f0f0")
+            table_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+            # Criar tabela
+            columns = ("ID", "Nome", "Grupo", "Data Presença", "Total", "Arquivado em")
+            tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=20)
+
+            tree.column("ID", width=80)
+            tree.column("Nome", width=180)
+            tree.column("Grupo", width=150)
+            tree.column("Data Presença", width=150)
+            tree.column("Total", width=80)
+            tree.column("Arquivado em", width=150)
+
+            for col in columns:
+                tree.heading(col, text=col)
+
+            # Adicionar registros
+            for record in history:
+                user_id = record.get('user_id', 'N/A')
+                nome = record.get('user_name', 'N/A')
+                grupo = record.get('group_name', 'N/A')
+                attendance_date = record.get('attendance_date', 'N/A')
+                total = record.get('total_attendance_at_time', 0)
+                created = record.get('created_at', 'N/A')
+
+                # Formatar datas
+                try:
+                    dt = datetime.fromisoformat(attendance_date)
+                    attendance_date = dt.strftime("%d/%m/%Y %H:%M")
+                except:
+                    pass
+
+                try:
+                    dt = datetime.fromisoformat(created)
+                    created = dt.strftime("%d/%m/%Y %H:%M")
+                except:
+                    pass
+
+                tree.insert("", "end", values=(user_id, nome, grupo, attendance_date, total, created))
+
+            # Scrollbars
+            v_scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+            h_scrollbar = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview)
+            tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+            tree.grid(row=0, column=0, sticky="nsew")
+            v_scrollbar.grid(row=0, column=1, sticky="ns")
+            h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+            table_frame.grid_rowconfigure(0, weight=1)
+            table_frame.grid_columnconfigure(0, weight=1)
+
+            # Botões
+            btn_frame = tk.Frame(history_window, bg="#f0f0f0")
+            btn_frame.pack(pady=10)
+
+            tk.Button(
+                btn_frame,
+                text="📄 Exportar Histórico",
+                command=lambda: self.exportar_historico(history),
+                font=("Arial", 10, "bold"),
+                bg="#FF9800",
+                fg="white",
+                width=18
+            ).pack(side="left", padx=5)
+
+            tk.Button(
+                btn_frame,
+                text="✅ Fechar",
+                command=history_window.destroy,
+                font=("Arial", 10, "bold"),
+                bg="#4CAF50",
+                fg="white",
+                width=15
+            ).pack(side="left", padx=5)
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao exibir histórico:\n{str(e)}")
+
+    def exportar_historico(self, history):
+        """Exporta o histórico para arquivo"""
+        try:
+            caminho = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Arquivo de texto", "*.txt"), ("CSV", "*.csv")],
+                title="Salvar histórico",
+                initialfile=f"historico_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            )
+            
+            if not caminho:
+                return
+
+            with open(caminho, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write("HISTÓRICO COMPLETO DE PRESENÇAS\n")
+                f.write("(Incluindo usuários deletados do sistema)\n")
+                f.write("=" * 80 + "\n\n")
+                f.write(f"Data da exportação: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+                f.write(f"Total de registros: {len(history)}\n\n")
+                f.write("-" * 80 + "\n")
+                
+                for record in history:
+                    f.write(f"\nID: {record.get('user_id', 'N/A')}\n")
+                    f.write(f"Nome: {record.get('user_name', 'N/A')}\n")
+                    f.write(f"Grupo: {record.get('group_name', 'N/A')}\n")
+                    f.write(f"Data da Presença: {record.get('attendance_date', 'N/A')}\n")
+                    f.write(f"Total de Presenças: {record.get('total_attendance_at_time', 0)}\n")
+                    f.write(f"Arquivado em: {record.get('created_at', 'N/A')}\n")
+                    f.write("-" * 80 + "\n")
+
+            messagebox.showinfo("Sucesso", f"Histórico exportado para:\n{caminho}")
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao exportar histórico:\n{str(e)}")
+
+    def verificar_status_sincronizacao(self):
+        """Verifica e exibe estatísticas de sincronização"""
+        try:
+            stats = self.local_db.get_database_stats()
+
+            status_text = (f"📊 Status do Banco Local:\n"
+                           f"Total de registros: {stats.get('total_registrations', 0)}\n"
+                           f"Pendentes de sincronização: {stats.get('pending_sync', 0)}\n"
+                           f"Sincronizados: {stats.get('synced', 0)}\n"
+                           f"Com erro: {stats.get('error', 0)}")
+            
+            if 'total_history' in stats:
+                status_text += f"\nRegistros no histórico: {stats.get('total_history', 0)}"
+
+            messagebox.showinfo("Status da Sincronização", status_text)
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao verificar status: {str(e)}")
 
     def exportar_lista(self):
-        """Exporta a lista de participantes, permitindo ao usuário escolher o local"""
-        # Verificar se há participantes para exportar
+        """Exporta a lista de participantes"""
         if not hasattr(self, 'participantes_presenciais') or not self.participantes_presenciais:
             messagebox.showinfo("Aviso", "Nenhum participante para exportar.")
             return
 
         try:
-            # Nome do arquivo sugerido
-            nome_evento = getattr(self, 'evento_nome', 'evento_offline')
+            nome_evento = self.evento_info.get('nome', 'evento_offline')
             nome_evento_arquivo = nome_evento.replace(' ', '_').replace('/', '-').replace('\\', '-')
             nome_sugerido = f"participantes_{nome_evento_arquivo}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
-            # Diálogo para o usuário escolher onde salvar
             caminho_completo = filedialog.asksaveasfilename(
                 title="Salvar lista de participantes",
                 defaultextension=".txt",
@@ -593,18 +1002,18 @@ class EventoControllerOffline:
             )
 
             if not caminho_completo:
-                return  # Usuário cancelou
+                return
 
             with open(caminho_completo, 'w', encoding='utf-8') as arquivo:
                 arquivo.write("LISTA DE PARTICIPANTES DO EVENTO\n")
                 arquivo.write("=" * 50 + "\n\n")
 
-                if hasattr(self, 'evento_nome'):
-                    arquivo.write(f"Nome do evento: {self.evento_nome}\n")
-                if hasattr(self, 'evento_inicio'):
-                    arquivo.write(f"Início do evento: {self.evento_inicio}\n")
-                if hasattr(self, 'evento_fim'):
-                    arquivo.write(f"Fim do evento: {self.evento_fim}\n")
+                if self.evento_info.get('nome'):
+                    arquivo.write(f"Nome do evento: {self.evento_info['nome']}\n")
+                if self.evento_info.get('inicio'):
+                    arquivo.write(f"Início do evento: {self.evento_info['inicio']}\n")
+                if self.evento_info.get('fim'):
+                    arquivo.write(f"Fim do evento: {self.evento_info['fim']}\n")
 
                 arquivo.write(f"Data da exportação: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
                 arquivo.write(f"Total de participantes: {len(self.participantes_presenciais)}\n\n")
@@ -624,79 +1033,6 @@ class EventoControllerOffline:
 
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao exportar:\n{str(e)}")
-
-    def exportar_registros_banco(self):
-        """Exporta todos os registros do banco local"""
-        try:
-            # Obter registros do banco
-            registros = self.local_db.get_all_registrations()
-
-            if not registros:
-                messagebox.showinfo("Aviso", "Nenhum registro no banco para exportar.")
-                return
-
-            # Obter área de trabalho
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            if not os.path.exists(desktop):
-                desktop = os.path.join(os.path.expanduser("~"), "Área de Trabalho")
-            if not os.path.exists(desktop):
-                desktop = os.path.expanduser("~")
-
-            # Nome do arquivo
-            nome_arquivo = f"registros_banco_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            caminho_completo = os.path.join(desktop, nome_arquivo)
-
-            with open(caminho_completo, 'w', encoding='utf-8') as arquivo:
-                arquivo.write("REGISTROS DO BANCO LOCAL\n")
-                arquivo.write("=" * 50 + "\n\n")
-                arquivo.write(f"Data da exportação: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
-                arquivo.write(f"Total de registros: {len(registros)}\n\n")
-
-                arquivo.write("REGISTROS:\n")
-                arquivo.write("-" * 100 + "\n")
-                arquivo.write(
-                    f"{'ID':<5} {'NOME':<30} {'GRUPO':<20} {'TELEFONE':<15} {'STATUS':<10} {'ATUALIZADO':<20}\n")
-                arquivo.write("-" * 100 + "\n")
-
-                for registro in registros:
-                    arquivo.write(f"{str(registro.get('id', 'N/A')):<5} "
-                                  f"{registro.get('name', 'N/A'):<30} "
-                                  f"{registro.get('group_name', 'N/A'):<20} "
-                                  f"{registro.get('phone', 'N/A'):<15} "
-                                  f"{registro.get('sync_status', 'N/A'):<10} "
-                                  f"{registro.get('updated_at', 'N/A')[:19]:<20}\n")
-
-            messagebox.showinfo("Sucesso", f"Registros do banco exportados para:\n{caminho_completo}")
-
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao exportar registros do banco: {str(e)}")
-
-    def excluir_registro_selecionado(self):
-        """Exclui o registro selecionado"""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Aviso", "Selecione um registro para excluir.")
-            return
-
-        item = self.tree.item(selected[0])
-        registro_id = item['values'][0]
-        nome = item['values'][1]
-
-        # Confirmar exclusão
-        resposta = messagebox.askyesno("Confirmar Exclusão",
-                                       f"Tem certeza que deseja excluir o registro:\n\nID: {registro_id}\nNome: {nome}")
-
-        if resposta:
-            try:
-                # Adapte este método conforme sua implementação de LocalDatabase
-                # success = self.local_db.delete_registration(registro_id)
-
-                # Por enquanto, simularemos
-                messagebox.showinfo("Info",
-                                    f"Funcionalidade para excluir registro ID {registro_id} precisa ser implementada no LocalDatabase.")
-
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao excluir: {str(e)}")
 
     def limpar_lista(self):
         """Limpa a lista de participantes"""
@@ -921,4 +1257,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

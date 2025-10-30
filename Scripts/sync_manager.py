@@ -1,7 +1,8 @@
 """
-Sistema de Sincronização com Supabase
+Sistema de Sincronização com Supabase - Versão Melhorada
 Módulo: Sync Manager
 Autor: Yago França
+Melhorias: Sincronização de edições locais
 """
 
 import requests
@@ -63,12 +64,29 @@ class SyncManager:
             logger.warning(f"Sem conexão com a internet: {e}")
             return False
 
-    def upload_to_supabase(self, registration_data: Dict[str, Any]) -> bool:
+    def mark_record_for_sync(self, registration_id: str) -> bool:
+        """
+        Marca um registro para sincronização após edição local
+
+        Args:
+            registration_id: ID do registro editado
+
+        Returns:
+            bool: True se marcado com sucesso
+        """
+        try:
+            return self.local_db.update_sync_status(registration_id, 'pending')
+        except Exception as e:
+            logger.error(f"Erro ao marcar registro para sincronização: {e}")
+            return False
+
+    def upload_to_supabase(self, registration_data: Dict[str, Any], is_update: bool = False) -> bool:
         """
         Envia um registro para o Supabase
 
         Args:
             registration_data: Dados do registro
+            is_update: Se True, usa PATCH para atualização; se False, usa POST para inserção
 
         Returns:
             bool: True se enviado com sucesso, False caso contrário
@@ -82,18 +100,28 @@ class SyncManager:
                 'phone': registration_data['phone'],
                 'event': registration_data.get('event'),
                 'total_attendance': registration_data['total_attendance'],
-                'last_attendance_time': registration_data.get('last_attendance_time')
+                'last_attendance_time': registration_data.get('last_attendance_time'),
+                'updated_at': datetime.now().isoformat()  # Timestamp de atualização
             }
 
             # Remover campos None
             supabase_data = {k: v for k, v in supabase_data.items() if v is not None}
 
-            # Fazer upsert no Supabase
-            url = f"{self.supabase_url}/rest/v1/FaceAttendenceRealTime"
-            response = requests.post(url, headers=self.headers, json=supabase_data)
+            # URL base
+            base_url = f"{self.supabase_url}/rest/v1/FaceAttendenceRealTime"
 
-            if response.status_code in [200, 201]:
-                logger.info(f"Registro enviado para Supabase: {registration_data['id']}")
+            if is_update:
+                # Para atualizações, usar PATCH com filtro por ID
+                url = f"{base_url}?id=eq.{registration_data['id']}"
+                response = requests.patch(url, headers=self.headers, json=supabase_data)
+            else:
+                # Para inserções, usar POST com upsert
+                upsert_headers = {**self.headers, 'Prefer': 'resolution=merge-duplicates'}
+                response = requests.post(base_url, headers=upsert_headers, json=supabase_data)
+
+            if response.status_code in [200, 201, 204]:
+                action = "atualizado" if is_update else "inserido"
+                logger.info(f"Registro {action} no Supabase: {registration_data['id']}")
                 return True
             else:
                 logger.error(f"Erro ao enviar para Supabase: {response.status_code} - {response.text}")
@@ -131,8 +159,8 @@ class SyncManager:
                     'Authorization': f'Bearer {self.storage_key}',
                 }
 
-                # URL para upload
-                url = f"{self.supabase_url}/storage/v1/object/storageforphotos/{filename}"
+                # URL para upload (usar upsert=true para sobrescrever se existir)
+                url = f"{self.supabase_url}/storage/v1/object/storageforphotos/{filename}?upsert=true"
 
                 response = requests.post(url, headers=upload_headers, files=files)
 
@@ -163,7 +191,7 @@ class SyncManager:
             # Adicionar filtro de tempo se fornecido
             params = {}
             if last_sync_time:
-                params['last_attendance_time'] = f'gte.{last_sync_time}'
+                params['updated_at'] = f'gte.{last_sync_time}'
 
             response = requests.get(url, headers=self.headers, params=params)
 
@@ -181,7 +209,7 @@ class SyncManager:
 
     def sync_pending_uploads(self) -> Tuple[int, int]:
         """
-        Sincroniza registros pendentes de upload
+        Sincroniza registros pendentes de upload (incluindo edições)
 
         Returns:
             Tuple[int, int]: (sucessos, falhas)
@@ -196,8 +224,12 @@ class SyncManager:
 
         for registration in pending_registrations:
             try:
+                # Verificar se o registro já existe no Supabase
+                existing_record = self.check_record_exists_remote(registration['id'])
+                is_update = existing_record is not None
+
                 # Tentar enviar dados
-                if self.upload_to_supabase(registration):
+                if self.upload_to_supabase(registration, is_update=is_update):
                     # Se há imagem, tentar enviar também
                     if registration.get('image_path') and os.path.exists(registration['image_path']):
                         if self.upload_image_to_storage(registration['id'], registration['image_path']):
@@ -208,6 +240,9 @@ class SyncManager:
                     # Marcar como sincronizado
                     self.local_db.update_sync_status(registration['id'], 'synced')
                     successes += 1
+
+                    action = "atualizado" if is_update else "criado"
+                    logger.info(f"Registro {action} com sucesso: {registration['id']}")
                 else:
                     # Marcar como erro
                     self.local_db.update_sync_status(registration['id'], 'error')
@@ -221,8 +256,33 @@ class SyncManager:
                 self.local_db.update_sync_status(registration['id'], 'error')
                 failures += 1
 
-        logger.info(f"Sincronização concluída: {successes} sucessos, {failures} falhas")
+        logger.info(f"Sincronização de uploads concluída: {successes} sucessos, {failures} falhas")
         return successes, failures
+
+    def check_record_exists_remote(self, registration_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Verifica se um registro existe no Supabase
+
+        Args:
+            registration_id: ID do registro
+
+        Returns:
+            Dict com dados do registro se existir, None caso contrário
+        """
+        try:
+            url = f"{self.supabase_url}/rest/v1/FaceAttendenceRealTime?id=eq.{registration_id}"
+            response = requests.get(url, headers=self.headers)
+
+            if response.status_code == 200:
+                data = response.json()
+                return data[0] if data else None
+            else:
+                logger.error(f"Erro ao verificar registro remoto: {response.status_code}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Erro ao verificar existência do registro: {e}")
+            return None
 
     def sync_downloads(self, last_sync_time: str = None) -> int:
         """
@@ -248,7 +308,7 @@ class SyncManager:
 
                 if local_record:
                     # Verificar se o registro remoto é mais recente
-                    remote_time = datetime.fromisoformat(remote_record.get('last_attendance_time', '1970-01-01'))
+                    remote_time = datetime.fromisoformat(remote_record.get('updated_at', remote_record.get('last_attendance_time', '1970-01-01')))
                     local_time = datetime.fromisoformat(local_record.get('updated_at', '1970-01-01'))
 
                     if remote_time > local_time:
@@ -260,6 +320,7 @@ class SyncManager:
                             'event': remote_record.get('event'),
                             'total_attendance': remote_record.get('total_attendance', 0),
                             'last_attendance_time': remote_record.get('last_attendance_time'),
+                            'updated_at': remote_record.get('updated_at'),
                             'sync_status': 'synced'
                         }
 
@@ -275,7 +336,8 @@ class SyncManager:
                         'phone': remote_record.get('phone'),
                         'event': remote_record.get('event'),
                         'total_attendance': remote_record.get('total_attendance', 0),
-                        'last_attendance_time': remote_record.get('last_attendance_time')
+                        'last_attendance_time': remote_record.get('last_attendance_time'),
+                        'updated_at': remote_record.get('updated_at')
                     }
 
                     if self.local_db.insert_registration(new_record):
@@ -290,9 +352,83 @@ class SyncManager:
         logger.info(f"Download concluído: {updated_count} registros atualizados")
         return updated_count
 
+    def sync_edited_records(self) -> Tuple[int, int]:
+        """
+        Sincroniza especificamente registros que foram editados localmente
+
+        Returns:
+            Tuple[int, int]: (sucessos, falhas)
+        """
+        logger.info("Iniciando sincronização de registros editados...")
+
+        if not self.check_internet_connection():
+            logger.warning("Sem conexão com a internet. Sincronização de edições adiada.")
+            return 0, 0
+
+        # Buscar todos os registros que não estão sincronizados
+        try:
+            # Tentar usar o método se existir
+            if hasattr(self.local_db, 'get_recently_updated_registrations'):
+                edited_records = self.local_db.get_recently_updated_registrations()
+            else:
+                # Fallback: usar método alternativo
+                edited_records = self.get_unsynced_records_fallback()
+        except Exception as e:
+            logger.error(f"Erro ao buscar registros editados: {e}")
+            return 0, 0
+
+        successes = 0
+        failures = 0
+
+        for record in edited_records:
+            try:
+                # Forçar atualização no Supabase
+                if self.upload_to_supabase(record, is_update=True):
+                    self.local_db.update_sync_status(record['id'], 'synced')
+                    successes += 1
+                    logger.info(f"Registro editado sincronizado: {record['id']}")
+                else:
+                    self.local_db.update_sync_status(record['id'], 'error')
+                    failures += 1
+
+                time.sleep(0.1)  # Pausa entre requisições
+
+            except Exception as e:
+                logger.error(f"Erro ao sincronizar registro editado {record['id']}: {e}")
+                self.local_db.update_sync_status(record['id'], 'error')
+                failures += 1
+
+        logger.info(f"Sincronização de edições concluída: {sucessos} sucessos, {failures} falhas")
+        return sucessos, failures
+
+    def get_unsynced_records_fallback(self) -> List[Dict[str, Any]]:
+        """
+        Método alternativo para buscar registros não sincronizados
+        quando o método principal não está disponível
+
+        Returns:
+            Lista de registros não sincronizados
+        """
+        try:
+            # Usar métodos que já existem na sua LocalDatabase
+            all_registrations = self.local_db.get_all_registrations()
+
+            # Filtrar apenas os que não estão sincronizados
+            unsynced = []
+            for reg in all_registrations:
+                if reg.get('sync_status') != 'synced':
+                    unsynced.append(reg)
+
+            logger.info(f"Encontrados {len(unsynced)} registros não sincronizados")
+            return unsynced
+
+        except Exception as e:
+            logger.error(f"Erro no método fallback: {e}")
+            return []
+
     def full_sync(self) -> Dict[str, Any]:
         """
-        Executa uma sincronização completa (upload e download)
+        Executa uma sincronização completa (upload, edições e download)
 
         Returns:
             Dict com estatísticas da sincronização
@@ -305,20 +441,27 @@ class SyncManager:
                 'message': 'Sem conexão com a internet',
                 'uploads_success': 0,
                 'uploads_failed': 0,
+                'edits_success': 0,
+                'edits_failed': 0,
                 'downloads': 0
             }
 
-        # Fazer uploads primeiro
+        # 1. Sincronizar uploads pendentes
         uploads_success, uploads_failed = self.sync_pending_uploads()
 
-        # Depois fazer downloads
+        # 2. Sincronizar registros editados
+        edits_success, edits_failed = self.sync_edited_records()
+
+        # 3. Baixar atualizações remotas
         downloads = self.sync_downloads()
 
         result = {
             'status': 'success',
-            'message': 'Sincronização concluída',
+            'message': 'Sincronização completa concluída',
             'uploads_success': uploads_success,
             'uploads_failed': uploads_failed,
+            'edits_success': edits_success,
+            'edits_failed': edits_failed,
             'downloads': downloads,
             'timestamp': datetime.now().isoformat()
         }
@@ -362,7 +505,7 @@ def create_sync_manager_from_config() -> SyncManager:
 
 
 if __name__ == "__main__":
-    # Teste básico do sistema de sincronização
+    # Teste da versão melhorada
     sync_manager = create_sync_manager_from_config()
 
     print("Testando conexão com a internet...")
@@ -374,7 +517,6 @@ if __name__ == "__main__":
     print(f"Status: {status}")
 
     if has_internet:
-        print("Testando sincronização completa...")
+        print("Testando sincronização completa (incluindo edições)...")
         result = sync_manager.full_sync()
         print(f"Resultado: {result}")
-
