@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
 import os
+import sys
 
 
 class StartScreen(tk.Tk):
@@ -12,6 +13,20 @@ class StartScreen(tk.Tk):
         self.criar_interface()
         self.process = None  # armazenar processo aberto
         self.reports_process = None  # processo específico para relatórios
+        
+        # ===== CORREÇÃO: Detectar diretório do script =====
+        self.script_dir = self.get_script_directory()
+        print(f"📁 Diretório base: {self.script_dir}")
+        # ===== FIM DA CORREÇÃO =====
+
+    def get_script_directory(self):
+        """Retorna o diretório onde o script está localizado"""
+        if getattr(sys, 'frozen', False):
+            # Se estiver executando como executável (PyInstaller)
+            return os.path.dirname(sys.executable)
+        else:
+            # Se estiver executando como script Python
+            return os.path.dirname(os.path.abspath(__file__))
 
     def configurar_janela(self):
         """Configura a janela principal"""
@@ -22,7 +37,9 @@ class StartScreen(tk.Tk):
 
         # Ícone da janela (se disponível)
         try:
-            self.iconbitmap("icon.ico")
+            icon_path = os.path.join(self.get_script_directory(), "icon.ico")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
         except:
             pass
 
@@ -239,14 +256,48 @@ class StartScreen(tk.Tk):
 
     def open_register(self):
         """Abre o script de registro"""
-        self.open_script("Register.py", "📝 Novo Registro")
+        self.open_script("register.py", "📝 Novo Registro")
 
     def open_reports(self):
         """Abre o script de relatórios (execução independente)"""
         self.open_reports_script("event_controller_offline.py", "📊 Relatórios")
 
+    def find_script_path(self, script_name):
+        """
+        Procura o script em múltiplos locais possíveis
+        Retorna o caminho completo se encontrar, None caso contrário
+        """
+        # Lista de caminhos possíveis
+        possible_paths = [
+            # 1. Mesmo diretório do Main.py
+            os.path.join(self.script_dir, script_name),
+            
+            # 2. Diretório atual de execução
+            os.path.join(os.getcwd(), script_name),
+            
+            # 3. Pasta Scripts (caso esteja em venv)
+            os.path.join(self.script_dir, "Scripts", script_name),
+            
+            # 4. Pasta pai (caso Main.py esteja em subpasta)
+            os.path.join(os.path.dirname(self.script_dir), script_name),
+            
+            # 5. Pasta ProjetoD (estrutura específica do seu projeto)
+            os.path.join(self.script_dir, "ProjetoD", script_name),
+            os.path.join(os.path.dirname(self.script_dir), "ProjetoD", script_name),
+        ]
+        
+        print(f"\n🔍 Procurando: {script_name}")
+        for path in possible_paths:
+            print(f"   Verificando: {path}")
+            if os.path.exists(path):
+                print(f"   ✅ ENCONTRADO!")
+                return path
+        
+        print(f"   ❌ NÃO ENCONTRADO em nenhum local")
+        return None
+
     def open_script(self, script_name, action_name):
-        """Abre um script Python com feedback visual (para verificação e registro)"""
+        """Abre um script Python com feedback visual (para verificação e registro) - VERSÃO CORRIGIDA"""
         if self.process and self.process.poll() is None:
             self.mostrar_aviso("⚠️ Processo Ativo",
                                "Já existe uma janela de verificação/registro aberta.\nFeche-a antes de abrir outra.")
@@ -259,18 +310,37 @@ class StartScreen(tk.Tk):
             )
             self.update()
 
-            # Verificar se o arquivo existe
-            if not os.path.exists(script_name):
-                self.mostrar_erro("❌ Arquivo Não Encontrado",
-                                  f"O arquivo '{script_name}' não foi encontrado.")
+            # ===== CORREÇÃO: Procurar script em múltiplos locais =====
+            script_path = self.find_script_path(script_name)
+            
+            if not script_path:
+                # Mostrar diálogo detalhado de erro
+                error_msg = (
+                    f"O arquivo '{script_name}' não foi encontrado.\n\n"
+                    f"Diretório atual: {self.script_dir}\n\n"
+                    f"Locais verificados:\n"
+                    f"• Mesmo diretório do Main.py\n"
+                    f"• Diretório atual de execução\n"
+                    f"• Pasta Scripts\n"
+                    f"• Pasta ProjetoD\n\n"
+                    f"Certifique-se de que o arquivo existe em um desses locais."
+                )
+                self.mostrar_erro("❌ Arquivo Não Encontrado", error_msg)
                 self.status_label.config(
-                    text="❌ Erro ao iniciar processo",
+                    text="❌ Erro: Arquivo não encontrado",
                     fg="#ff4444"
                 )
                 return
+            # ===== FIM DA CORREÇÃO =====
 
             python_cmd = "python" if os.name == "nt" else "python3"
-            self.process = subprocess.Popen([python_cmd, script_name])
+            
+            # Executar o script no diretório onde ele está localizado
+            script_directory = os.path.dirname(script_path)
+            self.process = subprocess.Popen(
+                [python_cmd, script_path],
+                cwd=script_directory  # Define o diretório de trabalho
+            )
 
             self.status_label.config(
                 text=f"✅ {action_name} iniciado com sucesso",
@@ -289,7 +359,7 @@ class StartScreen(tk.Tk):
             )
 
     def open_reports_script(self, script_name, action_name):
-        """Abre o script de relatórios com execução independente"""
+        """Abre o script de relatórios com execução independente - VERSÃO CORRIGIDA"""
         # Verificar se já existe um processo de relatórios ativo
         if self.reports_process and self.reports_process.poll() is None:
             self.mostrar_aviso("⚠️ Relatórios Já Abertos",
@@ -303,18 +373,31 @@ class StartScreen(tk.Tk):
             )
             self.update()
 
-            # Verificar se o arquivo existe
-            if not os.path.exists(script_name):
-                self.mostrar_erro("❌ Arquivo Não Encontrado",
-                                  f"O arquivo '{script_name}' não foi encontrado.")
+            # ===== CORREÇÃO: Procurar script em múltiplos locais =====
+            script_path = self.find_script_path(script_name)
+            
+            if not script_path:
+                error_msg = (
+                    f"O arquivo '{script_name}' não foi encontrado.\n\n"
+                    f"Diretório atual: {self.script_dir}\n\n"
+                    f"Certifique-se de que o arquivo existe no mesmo diretório."
+                )
+                self.mostrar_erro("❌ Arquivo Não Encontrado", error_msg)
                 self.status_label.config(
-                    text="❌ Erro ao iniciar processo",
+                    text="❌ Erro: Arquivo não encontrado",
                     fg="#ff4444"
                 )
                 return
+            # ===== FIM DA CORREÇÃO =====
 
             python_cmd = "python" if os.name == "nt" else "python3"
-            self.reports_process = subprocess.Popen([python_cmd, script_name])
+            
+            # Executar o script no diretório onde ele está localizado
+            script_directory = os.path.dirname(script_path)
+            self.reports_process = subprocess.Popen(
+                [python_cmd, script_path],
+                cwd=script_directory
+            )
 
             self.status_label.config(
                 text=f"✅ {action_name} iniciado com sucesso (execução independente)",

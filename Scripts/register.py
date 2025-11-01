@@ -2,6 +2,7 @@
 Sistema Integrado de Registro com Banco Local e Sincronização
 Módulo: Aplicação Principal Offline-First
 Autor: Yago França
+VERSÃO CORRIGIDA - SEM BUG DE CAPTURA DE FACE
 """
 
 import os
@@ -218,7 +219,7 @@ class OfflineFaceRegisterApp:
         # Botão principal
         self.start_button = tk.Button(
             button_frame,
-            text="Iniciar Captura Facial",
+            text="🎥 Iniciar Captura Facial",
             command=self.salvar_e_iniciar,
             font=("Segoe UI", 12, "bold"),
             bg="#00d4ff",
@@ -364,7 +365,7 @@ class OfflineFaceRegisterApp:
             )
         else:
             self.connection_status.config(
-                text="📴 Offline",
+                text="🔴 Offline",
                 fg="#ff6b6b"
             )
 
@@ -451,7 +452,7 @@ class OfflineFaceRegisterApp:
             listbox.insert(tk.END, item_text)
 
     def salvar_e_iniciar(self):
-        """Valida dados e inicia captura"""
+        """Valida dados e inicia captura - VERSÃO CORRIGIDA"""
         name = self.name_var.get().strip()
         group = self.group_var.get().strip()
         phone = self.phone_var.get().strip()
@@ -460,6 +461,18 @@ class OfflineFaceRegisterApp:
         if not all([name, group, phone]):
             messagebox.showerror("Erro", "Nome, Grupo e Telefone são obrigatórios!")
             return
+
+        # ===== CORREÇÃO: RESETAR ESTADO ANTES DE INICIAR =====
+        # Fechar câmera anterior se ainda estiver aberta
+        if self.cam and self.cam.isOpened():
+            self.cam.release()
+        
+        # Resetar todas as flags
+        self.capturou = False
+        self.rosto_detectado = False
+        self.id_unico = None
+        self.dados = None
+        # ===== FIM DA CORREÇÃO =====
 
         self.id_unico = gerar_id_unico()
 
@@ -487,11 +500,10 @@ class OfflineFaceRegisterApp:
             messagebox.showerror("Erro", "Não foi possível acessar a webcam")
             return
 
-        self.capturou = False
         self.atualizar_frame()
 
     def atualizar_frame(self):
-        """Atualiza o frame da webcam"""
+        """Atualiza o frame da webcam - VERSÃO CORRIGIDA"""
         if not self.cam or not self.cam.isOpened():
             return
 
@@ -519,11 +531,19 @@ class OfflineFaceRegisterApp:
                 cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
                 break
 
-        # Atualiza status
-        if self.rosto_detectado:
+        # Atualiza status - CORREÇÃO: Adicionar verificação de capturou
+        if self.rosto_detectado and not self.capturou:
             self.status_label.config(
                 text="✅ Rosto detectado! Capturando em 3 segundos...",
                 fg="#00ff88"
+            )
+            # Agendar captura - CORREÇÃO: Marcar como capturado ANTES do agendamento
+            self.capturou = True
+            self.master.after(3000, self.capturar_e_salvar_local)
+        elif self.capturou:
+            self.status_label.config(
+                text="⏳ Aguarde... captura agendada",
+                fg="#ffaa00"
             )
         else:
             self.status_label.config(
@@ -531,25 +551,32 @@ class OfflineFaceRegisterApp:
                 fg="#ffaa00"
             )
 
-        if self.rosto_detectado and not self.capturou:
-            self.capturou = True
-            self.master.after(3000, self.capturar_e_salvar_local)
-
         # Atualiza imagem
         img = Image.fromarray(frame_rgb)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk, text="")
 
-        self.master.after(30, self.atualizar_frame)
+        # CORREÇÃO: Só continuar atualizando se não capturou ainda
+        if not self.capturou:
+            self.master.after(30, self.atualizar_frame)
 
     def capturar_e_salvar_local(self):
-        """Captura foto e salva no banco local"""
+        """Captura foto e salva no banco local - VERSÃO CORRIGIDA"""
+        # Verificar se ainda temos câmera ativa
         if not self.cam or not self.cam.isOpened():
+            self.status_label.config(
+                text="❌ Câmera não disponível",
+                fg="#ff6b6b"
+            )
             return
 
         ret, frame = self.cam.read()
         if not ret:
+            self.status_label.config(
+                text="❌ Falha ao capturar frame",
+                fg="#ff6b6b"
+            )
             return
 
         frame = cv2.flip(frame, 1)
@@ -557,9 +584,11 @@ class OfflineFaceRegisterApp:
         # Criar diretório de imagens se não existir
         os.makedirs("Images", exist_ok=True)
         image_path = f"Images/{self.id_unico}.png"
-        cv2.imwrite(image_path, frame)
-
+        
         try:
+            # Salvar imagem
+            cv2.imwrite(image_path, frame)
+            
             self.status_label.config(
                 text="💾 Salvando no banco local...",
                 fg="#00d4ff"
@@ -573,6 +602,11 @@ class OfflineFaceRegisterApp:
             encoding_data = None
             if encodings:
                 encoding_data = serialize_encoding(encodings[0])
+            else:
+                self.status_label.config(
+                    text="⚠️ Nenhum rosto detectado na captura final",
+                    fg="#ffaa00"
+                )
 
             # Adicionar dados extras
             self.dados['image_path'] = image_path
@@ -601,14 +635,16 @@ class OfflineFaceRegisterApp:
                 )
 
         except Exception as e:
+            print(f"Erro ao capturar e salvar: {e}")
             self.status_label.config(
                 text=f"❌ Erro: {str(e)}",
                 fg="#ff6b6b"
             )
-
-        # Para a webcam
-        self.cam.release()
-        self.cam = None
+        finally:
+            # CORREÇÃO: Sempre parar a webcam após captura
+            if self.cam:
+                self.cam.release()
+                self.cam = None
 
         # Pergunta sobre novo cadastro
         self.master.after(500, self.perguntar_novo_cadastro)
@@ -670,6 +706,8 @@ def main():
     # Configurar fechamento da aplicação
     def on_closing():
         app.auto_sync_enabled = False
+        if app.cam and app.cam.isOpened():
+            app.cam.release()
         root.quit()
         root.destroy()
 
@@ -679,4 +717,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
