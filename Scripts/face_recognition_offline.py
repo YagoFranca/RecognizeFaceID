@@ -65,7 +65,7 @@ def get_resource(resource_path):
 
     for path in project_paths:
         if path.exists():
-            print(f"✅ Recurso encontrado em: {path}")
+            print(f"Recurso encontrado em: {path}")
             return str(path)
 
     print("\n🚨 DIAGNÓSTICO DE ERRO:")
@@ -284,8 +284,8 @@ class OfflineFaceRecognitionSystem:
         self.auto_sync_enabled = True
         self.start_auto_sync()
 
-        print("🚀 Sistema de reconhecimento facial melhorado iniciado!")
-        print(f"📊 Configurações de precisão:")
+        print("Sistema de reconhecimento facial melhorado iniciado!")
+        print(f"Configuracoes de precisao:")
         print(f"   - Threshold de distância: {self.config.FACE_DISTANCE_THRESHOLD}")
         print(f"   - Confiança mínima: {self.config.MIN_CONFIDENCE_THRESHOLD}")
         print(f"   - Frames de confirmação: {self.config.CONFIRMATION_FRAMES}")
@@ -307,10 +307,10 @@ class OfflineFaceRecognitionSystem:
                         self.encodeListKnown.append(encoding)
                         self.studentIds.append(registro['id'])
 
-            print(f"✅ Carregados {len(self.encodeListKnown)} encodings do banco local")
+            print(f"Carregados {len(self.encodeListKnown)} encodings do banco local")
 
         except Exception as e:
-            print(f"❌ Erro ao carregar encodings: {e}")
+            print(f"Erro ao carregar encodings: {e}")
             self.encodeListKnown, self.studentIds = [], []
 
     def calculate_face_confidence(self, face_distance):
@@ -384,7 +384,7 @@ class OfflineFaceRecognitionSystem:
                         # Se houve downloads, recarregar encodings
                         if result.get('downloads', 0) > 0:
                             self.load_encodings_from_database()
-                            print(f"🔄 Encodings recarregados após sincronização")
+                            print(f"Encodings recarregados apos sincronizacao")
 
                     # Aguardar 60 segundos antes da próxima verificação
                     time.sleep(60)
@@ -413,10 +413,10 @@ class OfflineFaceRecognitionSystem:
                     'last_attendance_time': registro.get('last_attendance_time')
                 }
             else:
-                print(f"❌ Nenhum usuário encontrado com id: {student_id}")
+                print(f"Nenhum usuario encontrado com id: {student_id}")
                 return None
         except Exception as e:
-            print(f"❌ Erro ao buscar informações do usuário: {e}")
+            print(f"Erro ao buscar informacoes do usuario: {e}")
             return None
 
     def update_attendance_local(self, student_id, total_attendance):
@@ -430,16 +430,16 @@ class OfflineFaceRecognitionSystem:
 
             success = self.local_db.update_registration(student_id, update_data)
             if success:
-                print(f"✅ Presença atualizada localmente para {student_id}")
+                print(f"Presenca atualizada localmente para {student_id}")
                 # Atualizar tempo da última reconfiguração
                 self.last_recognition_time[student_id] = time.time()
             else:
-                print(f"❌ Erro ao atualizar presença para {student_id}")
+                print(f"Erro ao atualizar presenca para {student_id}")
 
             return success
 
         except Exception as e:
-            print(f"❌ Erro ao atualizar presença: {e}")
+            print(f"Erro ao atualizar presenca: {e}")
             return False
 
     def get_student_image_local(self, student_id):
@@ -453,22 +453,22 @@ class OfflineFaceRecognitionSystem:
                 if os.path.exists(image_path):
                     image = cv2.imread(image_path)
                     if image is not None:
-                        print(f"✅ Imagem carregada localmente: {image_path}")
+                        print(f"Imagem carregada localmente: {image_path}")
                         return image
                     else:
-                        print(f"❌ Erro ao carregar imagem: {image_path}")
+                        print(f"Erro ao carregar imagem: {image_path}")
                 else:
-                    print(f"❌ Arquivo de imagem não encontrado: {image_path}")
+                    print(f"Arquivo de imagem nao encontrado: {image_path}")
 
             # Se não encontrou localmente e há internet, tentar baixar
             if self.has_internet:
-                print(f"🌐 Tentando baixar imagem do storage para {student_id}")
+                print(f"Tentando baixar imagem do storage para {student_id}")
                 return self.download_student_image(student_id)
 
             return None
 
         except Exception as e:
-            print(f"❌ Erro ao buscar imagem: {e}")
+            print(f"Erro ao buscar imagem: {e}")
             return None
 
     def download_student_image(self, student_id):
@@ -494,17 +494,17 @@ class OfflineFaceRecognitionSystem:
                     # Atualizar caminho no banco local
                     self.local_db.update_registration(student_id, {'image_path': local_path})
 
-                    print(f"✅ Imagem baixada e salva: {local_path}")
+                    print(f"Imagem baixada e salva: {local_path}")
                     return image
                 else:
-                    print("❌ Erro: cv2.imdecode retornou None")
+                    print("Erro: cv2.imdecode retornou None")
             else:
-                print(f"❌ Erro ao baixar imagem: HTTP {resp.status_code}")
+                print(f"Erro ao baixar imagem: HTTP {resp.status_code}")
 
             return None
 
         except Exception as e:
-            print(f"❌ Erro ao baixar imagem: {e}")
+            print(f"Erro ao baixar imagem: {e}")
             return None
 
     def is_already_registered_today_local(self, student_id):
@@ -611,7 +611,7 @@ class OfflineFaceRecognitionSystem:
         cap.set(3, 640)
         cap.set(4, 480)
 
-        print("🚀 Iniciando sistema de reconhecimento facial...")
+        print("Iniciando sistema de reconhecimento facial...")
 
         while True:
             success, img = cap.read()
@@ -670,7 +670,7 @@ class OfflineFaceRecognitionSystem:
                         # Calcular confiança
                         confidence = self.calculate_face_confidence(min_distance)
 
-                        print(f"🔍 Distância mínima: {min_distance:.3f}, Confiança: {confidence:.1f}%")
+                        print(f"Distancia minima: {min_distance:.3f}, Confianca: {confidence:.1f}%")
 
                         # Verificar se passou nos thresholds
                         if (matches[min_distance_index] and
@@ -777,7 +777,7 @@ class OfflineFaceRecognitionSystem:
                         status = "already_registered"
                         status_text = f"Já registrado hoje: {self.studentInfo['name']}"
                         self.set_notification(f"{self.studentInfo['name']} - JA REGISTRADO HOJE!", "info")
-                        print(f"🔄 Usuário {self.studentInfo['name']} já registrado hoje - não incrementando presença")
+                        print(f"Usuario {self.studentInfo['name']} ja registrado hoje - nao incrementando presenca")
                     else:
                         # Incrementar presença
                         new_attendance = self.studentInfo['total_attendance'] + 1
@@ -787,7 +787,7 @@ class OfflineFaceRecognitionSystem:
                             status = "new_registration"
                             status_text = f"Nova presença: {self.studentInfo['name']} ({self.current_recognition_confidence:.1f}%)"
                             self.set_notification(f"{self.studentInfo['name']} - PRESENCA REGISTRADA! ({self.current_recognition_confidence:.1f}%)", "success")
-                            print(f"✅ Nova presença registrada para {self.studentInfo['name']} com {self.current_recognition_confidence:.1f}% de confiança")
+                            print(f"Nova presenca registrada para {self.studentInfo['name']} com {self.current_recognition_confidence:.1f}% de confianca")
                         else:
                             status = "error"
                             status_text = "Erro ao registrar presença"
@@ -854,33 +854,33 @@ class OfflineFaceRecognitionSystem:
             elif key == ord('s'):
                 # Sincronização manual
                 if self.has_internet:
-                    print("🔄 Iniciando sincronização manual...")
+                    print("Iniciando sincronizacao manual...")
                     result = self.sync_manager.full_sync()
                     if result.get('downloads', 0) > 0:
                         self.load_encodings_from_database()
-                    print(f"✅ Sincronização concluída: {result}")
+                    print(f"Sincronizacao concluida: {result}")
                 else:
-                    print("❌ Sem conexão com internet para sincronização")
+                    print("Sem conexao com internet para sincronizacao")
             elif key == ord('r'):
                 # Recarregar encodings
-                print("🔄 Recarregando encodings do banco local...")
+                print("Recarregando encodings do banco local...")
                 self.load_encodings_from_database()
                 self.reset_recognition_state()
             elif key == ord('c'):
                 # Limpar estado de reconhecimento
-                print("🧹 Limpando estado de reconhecimento...")
+                print("Limpando estado de reconhecimento...")
                 self.reset_recognition_state()
             elif key == ord('t'):
                 # Ajustar threshold (para testes)
                 if self.config.FACE_DISTANCE_THRESHOLD == 0.45:
                     self.config.FACE_DISTANCE_THRESHOLD = 0.4
-                    print("🎯 Threshold mais restritivo: 0.4")
+                    print("Threshold mais restritivo: 0.4")
                 elif self.config.FACE_DISTANCE_THRESHOLD == 0.4:
                     self.config.FACE_DISTANCE_THRESHOLD = 0.5
-                    print("🎯 Threshold mais permissivo: 0.5")
+                    print("Threshold mais permissivo: 0.5")
                 else:
                     self.config.FACE_DISTANCE_THRESHOLD = 0.45
-                    print("🎯 Threshold padrão: 0.45")
+                    print("Threshold padrao: 0.45")
 
         # Limpeza
         self.auto_sync_enabled = False
@@ -892,31 +892,31 @@ def main():
     """Função principal"""
     try:
         print("=" * 60)
-        print("🚀 SISTEMA DE RECONHECIMENTO FACIAL MELHORADO")
+        print("SISTEMA DE RECONHECIMENTO FACIAL MELHORADO")
         print("=" * 60)
-        print("✨ Melhorias implementadas:")
-        print("   • Threshold de distância mais restritivo (0.45)")
-        print("   • Verificação de confiança mínima (55%)")
-        print("   • Confirmação por múltiplos frames (5 frames)")
-        print("   • Detecção de pessoas desconhecidas")
-        print("   • Verificação de tamanho mínimo da face")
-        print("   • Cooldown entre reconhecimentos")
-        print("   • Indicadores visuais de confiança")
+        print("Melhorias implementadas:")
+        print("   - Threshold de distancia mais restritivo (0.45)")
+        print("   - Verificacao de confianca minima (55%)")
+        print("   - Confirmacao por multiplos frames (5 frames)")
+        print("   - Deteccao de pessoas desconhecidas")
+        print("   - Verificacao de tamanho minimo da face")
+        print("   - Cooldown entre reconhecimentos")
+        print("   - Indicadores visuais de confianca")
         print("=" * 60)
-        print("🎮 Controles:")
-        print("   • Q: Sair")
-        print("   • S: Sincronização manual")
-        print("   • R: Recarregar encodings")
-        print("   • C: Limpar estado de reconhecimento")
-        print("   • T: Ajustar threshold de precisão")
+        print("Controles:")
+        print("   - Q: Sair")
+        print("   - S: Sincronizacao manual")
+        print("   - R: Recarregar encodings")
+        print("   - C: Limpar estado de reconhecimento")
+        print("   - T: Ajustar threshold de precisao")
         print("=" * 60)
 
         system = OfflineFaceRecognitionSystem()
         system.run()
     except KeyboardInterrupt:
-        print("\n👋 Sistema encerrado pelo usuário")
+        print("\nSistema encerrado pelo usuario")
     except Exception as e:
-        print(f"❌ Erro no sistema: {e}")
+        print(f"Erro no sistema: {e}")
         import traceback
         traceback.print_exc()
 

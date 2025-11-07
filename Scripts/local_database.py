@@ -8,7 +8,7 @@ import sqlite3
 import json
 import pickle
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import logging
 
@@ -29,6 +29,7 @@ class LocalDatabase:
         """
         self.db_path = db_path
         self.init_database()
+        self.init_attendance_history_table()  # NOVA TABELA DE HISTÓRICO
 
     def load_encodings_from_database(self):
         """Carrega encodings do banco de dados local"""
@@ -93,6 +94,46 @@ class LocalDatabase:
 
         except Exception as e:
             logger.error(f"Erro ao inicializar banco de dados: {e}")
+            raise
+
+    def init_attendance_history_table(self):
+        """Cria tabela para armazenar histórico de presenças"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Criar tabela de histórico de presenças
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS attendance_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT NOT NULL,
+                        user_name TEXT NOT NULL,
+                        group_name TEXT NOT NULL,
+                        phone TEXT,
+                        event TEXT,
+                        attendance_date TEXT NOT NULL,
+                        total_attendance_at_time INTEGER,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Índice para buscar por usuário
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_user_id 
+                    ON attendance_history(user_id)
+                ''')
+                
+                # Índice para buscar por data
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_attendance_date 
+                    ON attendance_history(attendance_date)
+                ''')
+                
+                conn.commit()
+                logger.info("Tabela de histórico de presenças criada com sucesso")
+                
+        except Exception as e:
+            logger.error(f"Erro ao criar tabela de histórico: {e}")
             raise
 
     def insert_registration(self, registration_data: Dict[str, Any]) -> bool:
@@ -300,7 +341,7 @@ class LocalDatabase:
 
     def delete_registration(self, registration_id: str) -> bool:
         """
-        Remove um registro do banco de dados
+        Remove um registro do banco de dados (SEM PRESERVAR HISTÓRICO)
 
         Args:
             registration_id: ID do registro a ser removido
@@ -329,6 +370,152 @@ class LocalDatabase:
             logger.error(f"Erro ao remover registro: {e}")
             return False
 
+    def save_to_history_before_delete(self, registration_id: str) -> bool:
+        """
+        Salva o registro de presença no histórico antes de deletar o usuário
+        
+        Args:
+            registration_id: ID do usuário a ser deletado
+            
+        Returns:
+            bool: True se o histórico foi salvo com sucesso
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Buscar dados do usuário
+                cursor.execute('''
+                    SELECT id, name, group_name, phone, event, 
+                           total_attendance, last_attendance_time
+                    FROM registrations 
+                    WHERE id = ?
+                ''', (registration_id,))
+                
+                user_data = cursor.fetchone()
+                
+                if not user_data:
+                    logger.warning(f"Usuário {registration_id} não encontrado")
+                    return False
+                
+                # Inserir no histórico
+                cursor.execute('''
+                    INSERT INTO attendance_history (
+                        user_id, user_name, group_name, phone, event,
+                        attendance_date, total_attendance_at_time, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    user_data[0],  # id
+                    user_data[1],  # name
+                    user_data[2],  # group_name
+                    user_data[3],  # phone
+                    user_data[4],  # event
+                    user_data[6] or datetime.now().isoformat(),  # last_attendance_time
+                    user_data[5],  # total_attendance
+                    datetime.now().isoformat()
+                ))
+                
+                conn.commit()
+                logger.info(f"✅ Histórico salvo para usuário {registration_id}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Erro ao salvar histórico: {e}")
+            return False
+
+    def delete_user_keep_history(self, registration_id: str) -> bool:
+        """
+        Deleta um usuário do sistema mas mantém seu histórico de presenças
+        
+        Args:
+            registration_id: ID do usuário a ser deletado
+            
+        Returns:
+            bool: True se deletado com sucesso
+        """
+        try:
+            # 1. Primeiro salvar no histórico
+            if not self.save_to_history_before_delete(registration_id):
+                logger.error("Não foi possível salvar histórico antes de deletar")
+                return False
+            
+            # 2. Depois deletar o usuário da tabela principal
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    DELETE FROM registrations WHERE id = ?
+                ''', (registration_id,))
+                
+                conn.commit()
+                
+                if cursor.rowcount > 0:
+                    logger.info(f"✅ Usuário {registration_id} deletado com histórico preservado")
+                    return True
+                else:
+                    logger.warning(f"Nenhum usuário encontrado para deletar: {registration_id}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Erro ao deletar usuário: {e}")
+            return False
+
+    def get_user_attendance_history(self, registration_id: str) -> List[Dict[str, Any]]:
+        """
+        Busca todo o histórico de presenças de um usuário (mesmo deletado)
+        
+        Args:
+            registration_id: ID do usuário
+            
+        Returns:
+            Lista com histórico de presenças
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT * FROM attendance_history 
+                    WHERE user_id = ?
+                    ORDER BY attendance_date DESC
+                ''', (registration_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar histórico: {e}")
+            return []
+
+    def get_all_attendance_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Busca todo o histórico de presenças (incluindo usuários deletados)
+        
+        Args:
+            limit: Número máximo de registros a retornar
+            
+        Returns:
+            Lista com histórico completo
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT * FROM attendance_history 
+                    ORDER BY attendance_date DESC
+                    LIMIT ?
+                ''', (limit,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar histórico completo: {e}")
+            return []
+
     def get_database_stats(self) -> Dict[str, Any]:
         """
         Retorna estatísticas do banco de dados
@@ -355,18 +542,89 @@ class LocalDatabase:
                 # Registros com erro
                 cursor.execute('SELECT COUNT(*) FROM registrations WHERE sync_status = "error"')
                 error = cursor.fetchone()[0]
+                
+                # Total de histórico
+                cursor.execute('SELECT COUNT(*) FROM attendance_history')
+                total_history = cursor.fetchone()[0]
 
                 return {
                     'total_registrations': total_registrations,
                     'pending_sync': pending_sync,
                     'synced': synced,
                     'error': error,
+                    'total_history': total_history,
                     'database_path': self.db_path
                 }
 
         except Exception as e:
             logger.error(f"Erro ao obter estatísticas: {e}")
             return {}
+
+    def get_recently_updated_registrations(self, hours_back: int = 24) -> List[Dict[str, Any]]:
+        """
+        Busca registros que foram atualizados recentemente (independente do sync_status)
+
+        Args:
+            hours_back: Quantas horas atrás considerar como "recente"
+
+        Returns:
+            Lista de registros atualizados recentemente
+        """
+        try:
+            # Calcular timestamp de corte
+            cutoff_time = datetime.now() - timedelta(hours=hours_back)
+            cutoff_timestamp = cutoff_time.isoformat()
+
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM registrations 
+                    WHERE updated_at > ? OR sync_status != 'synced'
+                    ORDER BY updated_at DESC
+                """, (cutoff_timestamp,))
+
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+
+        except Exception as e:
+            logger.error(f"Erro ao buscar registros atualizados recentemente: {e}")
+            return []
+
+    def mark_for_sync_after_edit(self, registration_id: str) -> bool:
+        """
+        Marca um registro para sincronização após edição
+        Esta função deve ser chamada sempre que um registro é editado
+
+        Args:
+            registration_id: ID do registro editado
+
+        Returns:
+            bool: True se marcado com sucesso
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE registrations 
+                    SET sync_status = 'pending', updated_at = ?
+                    WHERE id = ?
+                """, (datetime.now().isoformat(), registration_id))
+
+                conn.commit()
+
+                if cursor.rowcount > 0:
+                    logger.info(f"Registro marcado para sincronização: {registration_id}")
+                    return True
+                else:
+                    logger.warning(f"Registro não encontrado para marcar: {registration_id}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Erro ao marcar registro para sincronização: {e}")
+            return False
 
 
 # Função utilitária para serializar encodings faciais
@@ -405,30 +663,74 @@ def deserialize_encoding(serialized_encoding: bytes):
         logger.error(f"Erro ao deserializar encoding: {e}")
         return None
 
-def get_registration_by_id(self, registro_id):
-    """Busca um registro específico pelo ID"""
-    query = "SELECT * FROM registrations WHERE id = ?"
-    result = self.execute_query(query, (registro_id,))
-    return result[0] if result else None
 
-def update_registration(self, registro_id, name, group_name, phone, sync_status):
-    """Atualiza um registro existente"""
-    query = '''UPDATE registrations 
-               SET name = ?, group_name = ?, phone = ?, sync_status = ?, updated_at = ?
-               WHERE id = ?'''
-    from datetime import datetime
-    updated_at = datetime.now().isoformat()
-    return self.execute_query(query, (name, group_name, phone, sync_status, updated_at, registro_id))
+# ===== SCRIPT DE MIGRAÇÃO (Execute uma vez) =====
+def migrate_existing_data_to_history():
+    """
+    Migra dados existentes para a tabela de histórico
+    Execute este script UMA VEZ para migrar dados antigos
+    """
+    db = LocalDatabase()
+    
+    try:
+        with sqlite3.connect(db.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Buscar todos os usuários com presença registrada
+            cursor.execute('''
+                SELECT id, name, group_name, phone, event, 
+                       total_attendance, last_attendance_time
+                FROM registrations 
+                WHERE total_attendance > 0 AND last_attendance_time IS NOT NULL
+            ''')
+            
+            users = cursor.fetchall()
+            migrated = 0
+            
+            for user in users:
+                cursor.execute('''
+                    INSERT INTO attendance_history (
+                        user_id, user_name, group_name, phone, event,
+                        attendance_date, total_attendance_at_time, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    user[0], user[1], user[2], user[3], user[4],
+                    user[6], user[5], datetime.now().isoformat()
+                ))
+                migrated += 1
+            
+            conn.commit()
+            print(f"✅ {migrated} registros migrados para o histórico")
+            
+    except Exception as e:
+        print(f"❌ Erro na migração: {e}")
 
-def add_registration(self, name, group_name, phone, sync_status='pending'):
-    """Adiciona um novo registro"""
-    query = '''INSERT INTO registrations (name, group_name, phone, sync_status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)'''
-    from datetime import datetime
-    now = datetime.now().isoformat()
-    return self.execute_query(query, (name, group_name, phone, sync_status, now, now))
 
-def delete_registration(self, registro_id):
-    """Deleta um registro"""
-    query = "DELETE FROM registrations WHERE id = ?"
-    return self.execute_query(query, (registro_id,))
+# ===== EXEMPLO DE USO =====
+if __name__ == "__main__":
+    # Inicializar banco
+    db = LocalDatabase()
+    
+    # Exemplo 1: Deletar usuário mantendo histórico
+    print("\n=== EXEMPLO 1: Deletar usuário com histórico ===")
+    success = db.delete_user_keep_history("144697")
+    if success:
+        print("✅ Usuário deletado, histórico preservado!")
+    
+    # Exemplo 2: Consultar histórico de um usuário
+    print("\n=== EXEMPLO 2: Consultar histórico ===")
+    history = db.get_user_attendance_history("144697")
+    print(f"Histórico do usuário: {history}")
+    
+    # Exemplo 3: Consultar todo o histórico
+    print("\n=== EXEMPLO 3: Todo o histórico ===")
+    all_history = db.get_all_attendance_history(limit=10)
+    print(f"Total de registros no histórico: {len(all_history)}")
+    
+    # Exemplo 4: Estatísticas
+    print("\n=== EXEMPLO 4: Estatísticas ===")
+    stats = db.get_database_stats()
+    print(f"Estatísticas: {stats}")
+    
+    # Descomente para executar a migração (UMA VEZ):
+    # migrate_existing_data_to_history()
