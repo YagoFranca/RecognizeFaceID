@@ -7,3 +7,4 @@ dist/
 *.so
 *.pyc
 __pycache__/
+.venv/

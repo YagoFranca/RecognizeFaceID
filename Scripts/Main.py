@@ -235,7 +235,7 @@ class StartScreen(tk.Tk):
 
     def open_main(self):
         """Abre o script de verificação"""
-        self.open_script("face_recognition_offline.py", "🔍 Verificação de Registro")
+        self.open_script("Scripts/face_recognition_offline.py", "🔍 Verificação de Registro")
 
     def open_register(self):
         """Abre o script de registro"""
