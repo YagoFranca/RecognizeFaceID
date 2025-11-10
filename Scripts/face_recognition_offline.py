@@ -32,13 +32,13 @@ class RecognitionConfig:
     MIN_CONFIDENCE_THRESHOLD = 0.55  # 55% de confiança mínima
 
     # Número de frames consecutivos para confirmar reconhecimento
-    CONFIRMATION_FRAMES = 5  # Precisa reconhecer por 5 frames seguidos
+    CONFIRMATION_FRAMES = 3  # Precisa reconhecer por 3 frames seguidos (Antes era 5)
 
     # Tamanho mínimo da face para processar (evita faces muito pequenas/distantes)
     MIN_FACE_SIZE = 50  # pixels
 
     # Número máximo de faces para processar simultaneamente
-    MAX_FACES_TO_PROCESS = 3
+    MAX_FACES_TO_PROCESS = 1
 
     # Tempo mínimo entre reconhecimentos da mesma pessoa (segundos)
     MIN_TIME_BETWEEN_SAME_PERSON = 3
@@ -264,7 +264,7 @@ class OfflineFaceRecognitionSystem:
         self.notification_message = ""
         self.notification_type = ""
         self.notification_timer = 0
-        self.NOTIFICATION_DURATION = 150
+        self.NOTIFICATION_DURATION = 10
 
         # Status de conexão
         self.has_internet = False
@@ -476,7 +476,7 @@ class OfflineFaceRecognitionSystem:
         try:
             # Usar a URL do Supabase Storage
             storage_path = f"{student_id}.png"
-            url = f"https://jtqxscwmjjaandwujsxq.supabase.co/storage/v1/object/public/storageforphotos/{storage_path}"
+            url = f"https://bxdykjxoskysmywtdfoa.storage.supabase.co/storage/v1/s3/object/public/storageforphotos/{storage_path}"
 
             print(f"URL da imagem: {url}")
             resp = requests.get(url, timeout=10)

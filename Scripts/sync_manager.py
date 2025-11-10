@@ -355,8 +355,8 @@ def create_sync_manager_from_config() -> SyncManager:
         SyncManager configurado
     """
     SUPABASE_URL = "https://bxdykjxoskysmywtdfoa.supabase.co"
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0cXhzY3dtamphYW5kd3Vqc3hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxNDM2MDUsImV4cCI6MjA2NDcxOTYwNX0.OlugtCsxjpHsU6EWjNcJsETj852TDZ0ykQVWFcS9lfo"
-    STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0cXhzY3dtamphYW5kd3Vqc3hxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTE0MzYwNSwiZXhwIjoyMDY0NzE5NjA1fQ.yPXNbMP0-u3uwBTX8n-ymKIxH0S1mJV9D4TjLRC7DNk"
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4ZHlranhvc2t5c215d3RkZm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1Njk1OTAsImV4cCI6MjA3MDE0NTU5MH0.qsyqdfyBxjdKQNGz6Y9eVxMr633XBgZxuIyGt7OiS2c"
+    STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4ZHlranhvc2t5c215d3RkZm9hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU2OTU5MCwiZXhwIjoyMDcwMTQ1NTkwfQ.hGsOdmuVcO7AtKTqrR8rA-b0Y8tYeymt-Dzws20VSZU"
 
     return SyncManager(SUPABASE_URL, SUPABASE_KEY, STORAGE_KEY)
 
